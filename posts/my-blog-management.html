@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="dcterms.date" content="2018-05-26" />
+  <meta name="keywords" content="GNU Make, YAML, Pandoc, Markdown, HTML, rsync" />
+  <meta name="last_modified" content="2020-03-06T11:32:28Z" />
+  <meta name="published" content="May 26, 2018" />
+  <title>用Makefile管理blog</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-AMS_CHTML-full" type="text/javascript"></script>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">用Makefile管理blog</h1>
+<p class="date">May 26, 2018</p>
+</header>
+<p><img src="../imgs/make_blog.png" alt="Generating blog using Make" height="250"/></p>
+<ul>
+<li><ol start="0" type="1">
+<li><a href="#overview">Overview</a></li>
+</ol></li>
+<li><ol type="1">
+<li><a href="#markdown">Markdown</a></li>
+</ol></li>
+<li><ol start="2" type="1">
+<li><a href="#pandoc">Pandoc</a></li>
+</ol>
+<ul>
+<li>2.1 <a href="#metadata">Converting with metadata - internal YAML</a></li>
+<li>2.2 <a href="#template">Converting with template - external YAML</a></li>
+<li>2.3 <a href="#css">Converting with style - CSS</a></li>
+<li>2.4 <a href="#latex"><span class="math inline">\(\LaTeX\)</span>?</a></li>
+</ul></li>
+<li><ol start="3" type="1">
+<li><a href="#makefile">Makefile</a></li>
+</ol></li>
+<li><ol start="4" type="1">
+<li><a href="#rss">RSS</a></li>
+</ol></li>
+<li><ol start="5" type="1">
+<li><a href="#sync">Synchronize</a></li>
+</ol></li>
+</ul>
+<p><a name="overview"></a></p>
+<h2 id="overview">0. Overview</h2>
+<p>印象中我搭过三次博客，两次搭在了Github Pages上，分别使用了Jekyll和Hexo，不过那时候菜得要死，没什么好写的东西，也没能力去扩展现有的框架，不过搭建博客的过程还是让当时的我学到了一些东西。后来我买了服务器，搭了一个博客在上面，记过一些笔记，却一直没有给它配一个域名（因为不知道买哪个，选择困难晚期），后来那个博客也就不了了之。</p>
+<p>这算是我第四次开博客了，不同的是我不再是当年的菜鸟了，有时候我真的觉得我有一些东西想和这个世界上的一些人分享 :)</p>
+<p>这次的博客依然采用Markdown写作，我选择Pandoc将其转为HTML，并使用GNU Make来进行批量管理。这篇文章主要讲述我如何使用这三种工具来手动管理我的博客。</p>
+<p><a name="markdown"></a></p>
+<h2 id="markdown">1. <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a></h2>
+<p>Markdown作为一种轻量级标记语言而被广大程序员所熟知，它简单明了，非常适合用在博客的写作上。它的语法简单，比如’#’可以用来指定标题的大小，<code># Header 1</code>一般会被转化成<code>&lt;h1&gt; Header 1 &lt;/h1&gt;</code>，<code>## Header 2</code>被转换成<code>&lt;h2&gt; Header 2 &lt;/h2&gt;</code>，等等，我不打算在这里大谈Markdown的语法，具体语法可以参考<a href="https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet">这里</a>。</p>
+<p>Markdown的简单明了伴随着表达力不足的问题，但一般可以通过内嵌HTML的方式来解决。比如图片大小的设置，在Markdown中，如果要插入一副图片，语法是</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><a class="sourceLine" id="cb1-1" title="1"><span class="al">![alt text](../imgs/make_blog.png)</span></a></code></pre></div>
+<p>可是问题在于标准的Markdown的语法并没有提供指定图片大小的方式，于是它就会默认使用图片的原大小，which is 非常不好的。事实上，我很少用这个语法，如果我想要引入一张图片，例如上面的题图，我会使用标准的HTML语法来引入</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode html"><code class="sourceCode html"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">&lt;img</span><span class="ot"> src=</span><span class="st">&quot;../imgs/make_blog.png&quot;</span><span class="ot"> alt=</span><span class="st">&quot;alt text&quot;</span><span class="ot"> height=</span><span class="st">&quot;250&quot;</span><span class="kw">/&gt;</span></a></code></pre></div>
+<p>总而言之，我还是很喜欢Markdown的，我觉得它作为一个方便写作的标记语言还算是称职的，尽管有些标记符设计得有些问题。我无法要求它能表达所有HTML都能表达的东西，毕竟那样的话，Markdown就成了另一个HTML :)</p>
+<p><a name="pandoc"></a></p>
+<h2 id="pandoc">2. <a href="https://pandoc.org/">Pandoc</a></h2>
+<p>Pandoc是一款由Haskell写成的，<a href="https://github.com/jgm/pandoc">开源</a>的通用文档转换工具，自称文档转换届的瑞士军刀（Pandoc官网上自己说的）。我从中挑了一把Markdown to HTML的小刀用了一下，发现这把刀真是异常锋利。</p>
+<p>Pandoc的基础语法很简单，写完Markdown之后，使用以下命令将其转换为HTML文件，</p>
+<pre><code>// Converting test.md from (-f) markdown to (-t) html and output (-o) test.html
+pandoc test.md -f markdown -t html -o test.html</code></pre>
+<p><a name="metadata"></a></p>
+<h3 id="converting-with-metadata---internal-yaml">2.1 Converting with metadata - internal YAML</h3>
+<p>Pandoc支持在Markdown文件中嵌入YAML，叫做<a href="https://pandoc.org/MANUAL.html#extension-yaml_metadata_block"><code>yaml_metadata_block</code></a>，顾名思义，这个是用来控制这个Markdown文件的Metadata的。YAML语法块以<code>---</code>开始，也以<code>---</code>结束，一般，我会在我的Markdown文件的YAML语法块中嵌入以下信息：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode yaml"><code class="sourceCode yaml"><a class="sourceLine" id="cb4-1" title="1"><span class="ot">---</span></a>
+<a class="sourceLine" id="cb4-2" title="2"><span class="fu">title:</span><span class="at"> 用Makefile管理blog</span></a>
+<a class="sourceLine" id="cb4-3" title="3"><span class="fu">keywords:</span></a>
+<a class="sourceLine" id="cb4-4" title="4">    GNU Make, YAML, Pandoc, Markdown, HTML</a>
+<a class="sourceLine" id="cb4-5" title="5"><span class="fu">author:</span></a>
+<a class="sourceLine" id="cb4-6" title="6">    Jiahao Cai</a>
+<a class="sourceLine" id="cb4-7" title="7"><span class="ot">---</span></a></code></pre></div>
+<p>这些信息会被Pandoc所提取，并写在生成的HTML文件中，上面的语法块会被转化成以下代码：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode html"><code class="sourceCode html"><a class="sourceLine" id="cb5-1" title="1">  <span class="co">&lt;!-- 在head中增加以下代码 --&gt;</span></a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="kw">&lt;meta</span><span class="ot"> name=</span><span class="st">&quot;author&quot;</span><span class="ot"> content=</span><span class="st">&quot;Jiahao Cai&quot;</span> <span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb5-3" title="3">  <span class="kw">&lt;meta</span><span class="ot"> name=</span><span class="st">&quot;keywords&quot;</span><span class="ot"> content=</span><span class="st">&quot;GNU Make, YAML, Pandoc, Markdown, HTML&quot;</span> <span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb5-4" title="4">  <span class="kw">&lt;title&gt;</span>用Makefile管理blog<span class="kw">&lt;/title&gt;</span></a></code></pre></div>
+<p>以及</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode html"><code class="sourceCode html"><a class="sourceLine" id="cb6-1" title="1">  <span class="co">&lt;!-- 在body中增加以下代码 --&gt;</span></a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="kw">&lt;header&gt;</span></a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="kw">&lt;h1</span><span class="ot"> class=</span><span class="st">&quot;title&quot;</span><span class="kw">&gt;</span>用Makefile管理blog<span class="kw">&lt;/h1&gt;</span></a>
+<a class="sourceLine" id="cb6-4" title="4">  <span class="kw">&lt;p</span><span class="ot"> class=</span><span class="st">&quot;author&quot;</span><span class="kw">&gt;</span>Jiahao Cai<span class="kw">&lt;/p&gt;</span></a>
+<a class="sourceLine" id="cb6-5" title="5">  <span class="kw">&lt;/header&gt;</span></a></code></pre></div>
+<p>不过此时如果你用了我之前给的命令<code>pandoc test.md -f markdown -t html -o test.html</code>，你会发现转换出来的HTML并没有title／author／keyword，这是因为Pandoc默认只生成HTML fragment：</p>
+<blockquote>
+<p>By default, pandoc produces a document fragment. To produce a standalone document (e.g. a valid HTML file including &lt;head&gt; and &lt;body&gt;), use the -s or –standalone flag</p>
+</blockquote>
+<p>所以只要使用<code>pandoc test.md -f markdown -t html --standalone -o test.html</code>就可以生成完整的HTML文件了。</p>
+<p><strong>至此，如果你没有更多的需求，那么Markdown转HTML的部分已经结束了，上面的命令已经足够了。接下来讲的是如何通过一个外部的YAML文件在所有转换出的HTML文件中插入相同的内容，使用CSS美化生成的HTML文件以及如何插入<span class="math inline">\(\LaTeX\)</span>。</strong></p>
+<hr />
+<p><a name="template"></a></p>
+<h3 id="converting-with-template---external-yaml">2.2 Converting with template - external YAML</h3>
+<p>上面所提到的YAML代码块一般都独立分布在各个Markdown文件中，毕竟每个文件的title都是不一样的。此时万一我有个通用的需求，所有的Markdown文件都需要满足，我是否可以将它抽离出来呢？Pandoc可以，我们可以通过一个外部的YAML文件来实现一个template。</p>
+<p>我对所有的HTML文件都至少有如下需求：</p>
+<ul>
+<li>说明当前页面为中文</li>
+<li>使用相同的favicon</li>
+<li>移动端适配</li>
+<li>嵌入Google analytics的代码</li>
+<li>在文件的结尾加上[Return to the homepage]的按钮</li>
+</ul>
+<p>我可以将这些要求单独放到一个YAML文件里，然后将Markdown文件作为source，YAML作为模板，共同生成每个HTML文件。根据上述的需求，我写了如下YAML文件（关于Pandoc中YAML支持的属性，请查看<a href="https://pandoc.org/MANUAL.html#templates">这里</a>）：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode yaml"><code class="sourceCode yaml"><a class="sourceLine" id="cb7-1" title="1"><span class="ot">---</span></a>
+<a class="sourceLine" id="cb7-2" title="2"><span class="fu">lang:</span><span class="at"> zh</span></a>
+<a class="sourceLine" id="cb7-3" title="3"></a>
+<a class="sourceLine" id="cb7-4" title="4"><span class="fu">header-includes:</span></a>
+<a class="sourceLine" id="cb7-5" title="5">    &lt;link rel=<span class="st">&quot;icon&quot;</span> href=<span class="st">&quot;../imgs/favicon.ico&quot;</span> type=<span class="st">&quot;image/x-icon&quot;</span>/&gt;</a>
+<a class="sourceLine" id="cb7-6" title="6">    &lt;link rel=<span class="st">&quot;shortcut icon&quot;</span> href=<span class="st">&quot;../imgs/favicon.ico&quot;</span> type=<span class="st">&quot;image/x-icon&quot;</span> /&gt; </a>
+<a class="sourceLine" id="cb7-7" title="7">    &lt;meta name=<span class="st">&quot;viewport&quot;</span> content=<span class="st">&quot;width=device-width, initial-scale=1&quot;</span> /&gt;  </a>
+<a class="sourceLine" id="cb7-8" title="8"></a>
+<a class="sourceLine" id="cb7-9" title="9">    &lt;!-- Global site tag (gtag.js) - Google Analytics --&gt;</a>
+<a class="sourceLine" id="cb7-10" title="10">    &lt;script async src=<span class="st">&quot;https://www.googletagmanager.com/gtag/js?id=UA-116308654-1&quot;</span>&gt;&lt;/script&gt;</a>
+<a class="sourceLine" id="cb7-11" title="11">    &lt;script&gt;</a>
+<a class="sourceLine" id="cb7-12" title="12">    window.dataLayer = window.dataLayer || <span class="kw">[]</span>;</a>
+<a class="sourceLine" id="cb7-13" title="13">    function gtag()<span class="kw">{</span>dataLayer.push(arguments);<span class="kw">}</span></a>
+<a class="sourceLine" id="cb7-14" title="14">    gtag(<span class="st">&#39;js&#39;</span>, new Date());</a>
+<a class="sourceLine" id="cb7-15" title="15">    gtag(<span class="st">&#39;config&#39;</span>, <span class="st">&#39;UA-116308654-1&#39;</span>);</a>
+<a class="sourceLine" id="cb7-16" title="16">    &lt;/script&gt;</a>
+<a class="sourceLine" id="cb7-17" title="17"></a>
+<a class="sourceLine" id="cb7-18" title="18"><span class="fu">include-after:</span></a>
+<a class="sourceLine" id="cb7-19" title="19">    &lt;a style=<span class="st">&quot;color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;&quot;</span> href=<span class="st">&quot;../index.html&quot;</span>&gt;<span class="kw">[</span>Return to the homepage<span class="kw">]</span>&lt;/a&gt;</a>
+<a class="sourceLine" id="cb7-20" title="20"><span class="ot">---</span></a></code></pre></div>
+<p>然后我们再加上一个参数<code>template.yaml</code>，指定模板来生成HTML文件</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb8-1" title="1"><span class="ex">pandoc</span> template.yaml test.md -f markdown -t html --standalone -o test.html</a></code></pre></div>
+<p>这样一来，我们就可以只修改<code>template.yaml</code>中的代码，然后将所有Markdown文件重新转换成HTML文件即可。听起来还是很复杂对吧，不要着急，我们可以用一个Makefile来简化这一切 :)</p>
+<p><a name="css"></a></p>
+<h3 id="converting-with-style---css">2.3 Converting with style - CSS</h3>
+<p>Pandoc也可以为生成的HTML文件来指定CSS，我使用的CSS是从Github Gist上找来的，地址在<a href="https://gist.github.com/killercup/5917178">这里</a>。使用方法很简单，加上<code>--css style.css</code>参数即可。现在我们的参数更复杂了，变成了</p>
+<pre><code>pandoc template.yaml test.md -f markdown --css style.css -t html --standalone -o test.html</code></pre>
+<p><a name="latex"></a></p>
+<h3 id="latex">2.4 <span class="math inline">\(\LaTeX\)</span>?</h3>
+<p>写Markdown的同时也会有要写LaTeX的需求，比如我在<a href="reservoir_computing.html">Reservoir computing简介</a>里写的那些公式。Pandoc也支持在Markdown中插入LaTeX公式，使用方法很简单，就跟真正的LaTeX中Math mode一样，可以在两个$之间或者两个$$之间插入公式。</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode latex"><code class="sourceCode latex"><a class="sourceLine" id="cb10-1" title="1"><span class="ss">$$</span></a>
+<a class="sourceLine" id="cb10-2" title="2"><span class="sc">\boldsymbol</span><span class="ss">{r}(t + </span><span class="sc">\Delta</span><span class="ss"> t) = (1 - </span><span class="sc">\alpha</span><span class="ss">)</span><span class="sc">\boldsymbol</span><span class="ss">{r}(t) + </span><span class="sc">\alpha\tanh</span><span class="ss">(</span><span class="sc">\boldsymbol</span><span class="ss">{Ar}(t) + </span><span class="sc">\boldsymbol</span><span class="ss">{W}_{in}</span><span class="sc">\boldsymbol</span><span class="ss">{u}(t) + </span><span class="sc">\xi</span><span class="ss"> 1)</span></a>
+<a class="sourceLine" id="cb10-3" title="3"><span class="ss">$$</span> </a></code></pre></div>
+<p>会被转化成</p>
+<p><span class="math display">\[
+\boldsymbol{r}(t + \Delta t) = (1 - \alpha)\boldsymbol{r}(t) + \alpha\ tanh(\boldsymbol{Ar}(t) + \boldsymbol{W}_{in}\boldsymbol{u}(t) + \xi 1)
+\]</span></p>
+<p>使用LaTeX需要加入<code>--mathjax</code>参数，此时我们的命令变成了</p>
+<pre><code>pandoc template.yaml test.md -f markdown --css style.css -t html --standalone --mathjax -o test.html</code></pre>
+<p><a name="makefile"></a></p>
+<h2 id="makefile">3. Makefile</h2>
+<p>终于到了Makefile了，下面我们要做的就是写一个Makefile简化上述所有的流程，我现在使用的是GNU Make。Makefile还有个优势就是，当所有目标文件都生成之后，再次执行Makefile时，当且仅当目标文件的依赖文件被修改过时，目标文件才会被重新生成，如下图所示。此处我<code>make</code>之后，只修改了<code>thoughts.md</code>，于是下次<code>make</code>的时候，便只生成目标文件<code>thoughts.html</code>了。</p>
+<p><img src="../imgs/make_blog.png" alt="Generating blog using Make" height="250"/></p>
+<p>关于Makefile的语法，我这里还是不多说了，这语法并不是很友好，很多不好的遗留的设计，单独写出来估计能写本小册子了，我就偷个懒，直接把我的Makefile贴在这里了。总之，用了它之后，我可以专心写Markdown，写完就<code>make</code>或者<code>make clean</code>就完事了，还是挺方便的。虽然之前折腾得挺多，不过我就喜欢折腾 :)</p>
+<pre class='samp'>
+CSS = ../style.css
+FLAG = --standalone --mathjax
+SRC = src
+TEMPLATE = template.yaml
+MD = \
+reservoir_computing\
+thoughts\
+shadowsocks_in_ruby\
+quote_from_jobs\
+terminal_music\
+apply_master_in_sweden\
+stockholm_visit\
+my_blog_management
+
+HTML = $(MD:%=%.html)
+
+all: $(HTML)
+
+%.html: $(SRC)/%.md $(TEMPLATE) $(CSS)
+    @echo Converting $< to $@
+    @pandoc $(TEMPLATE) $< -f markdown --css $(CSS) -t html $(FLAG) -o $@
+
+clean:
+    rm $(HTML)
+</pre>
+<p>我把博客文章的目录结构也贴在这里，方便大家理解上面的Makefile</p>
+<pre class='samp'>
+.
+├── Makefile
+├── apply_master_in_sweden.html
+├── my_blog_management.html
+├── quote_from_jobs.html
+├── reservoir_computing.html
+├── shadowsocks_in_ruby.html
+├── stockholm_visit.html
+├── terminal_music.html
+├── thoughts.html
+├── src
+│   ├── apply_master_in_sweden.md
+│   ├── my_blog_management.md
+│   ├── quote_from_jobs.md
+│   ├── reservoir_computing.md
+│   ├── shadowsocks_in_ruby.md
+│   ├── stockholm_visit.md
+│   ├── terminal_music.md
+│   └── thoughts.md
+└── template.yaml
+</pre>
+<p><a name="rss"></a></p>
+<h2 id="rss">4. RSS</h2>
+<p><a href="https://en.wikipedia.org/wiki/RSS">RSS</a> (Rich Site Summary 或 Really Simple Syndication) 是一种网站主动提供的服务，使用一种标准化的格式来描述网站的更新情况，从而使得用户可以轻易地订阅一个网站，即定时地从该网站的RSS源获取信息。这种主动提供服务的好处就是用户不必经常通过访问网站来了解该网站是否有更新，更新在何处，用户可以通过RSS阅读器来第一时间获取网站的更新。</p>
+<p>RSS一般由一个XML文件来表达，它并没有一个官方的标准，我这里使用的是<a href="https://validator.w3.org/feed/docs/atom.html">Atom</a>。</p>
+<p>一个简单的Atom feed如下所示：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode xml"><code class="sourceCode xml"><a class="sourceLine" id="cb12-1" title="1"><span class="kw">&lt;?xml</span> version=&quot;1.0&quot; encoding=&quot;utf-8&quot;<span class="kw">?&gt;</span></a>
+<a class="sourceLine" id="cb12-2" title="2"><span class="kw">&lt;feed</span><span class="ot"> xmlns=</span><span class="st">&quot;http://www.w3.org/2005/Atom&quot;</span><span class="kw">&gt;</span></a>
+<a class="sourceLine" id="cb12-3" title="3"></a>
+<a class="sourceLine" id="cb12-4" title="4">  <span class="co">&lt;!-- 以下是有关网站的全局描述 --&gt;</span></a>
+<a class="sourceLine" id="cb12-5" title="5">  <span class="kw">&lt;title&gt;</span>Ground Oddity<span class="kw">&lt;/title&gt;</span></a>
+<a class="sourceLine" id="cb12-6" title="6">  <span class="kw">&lt;link</span><span class="ot"> href=</span><span class="st">&quot;http://jujuba.me/&quot;</span><span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb12-7" title="7">  <span class="kw">&lt;updated&gt;</span>2018-06-29T18:30:02Z<span class="kw">&lt;/updated&gt;</span></a>
+<a class="sourceLine" id="cb12-8" title="8">  <span class="kw">&lt;author&gt;</span></a>
+<a class="sourceLine" id="cb12-9" title="9">    <span class="kw">&lt;name&gt;</span>Jiahao Cai<span class="kw">&lt;/name&gt;</span></a>
+<a class="sourceLine" id="cb12-10" title="10">  <span class="kw">&lt;/author&gt;</span></a>
+<a class="sourceLine" id="cb12-11" title="11">  <span class="kw">&lt;updated&gt;</span>2018-06-29T22:06:42.669707+08:00<span class="kw">&lt;/updated&gt;</span></a>
+<a class="sourceLine" id="cb12-12" title="12">  <span class="kw">&lt;id&gt;</span>http://jujuba.me/<span class="kw">&lt;/id&gt;</span></a>
+<a class="sourceLine" id="cb12-13" title="13"></a>
+<a class="sourceLine" id="cb12-14" title="14">  <span class="co">&lt;!-- 以下是对entry的描述，一个entry代表博客中的一篇文章 --&gt;</span></a>
+<a class="sourceLine" id="cb12-15" title="15">  <span class="kw">&lt;entry&gt;</span></a>
+<a class="sourceLine" id="cb12-16" title="16">    <span class="kw">&lt;title&gt;</span>用Makefile管理blog<span class="kw">&lt;/title&gt;</span></a>
+<a class="sourceLine" id="cb12-17" title="17">    <span class="kw">&lt;link</span><span class="ot"> href=</span><span class="st">&quot;http://jujuba.me/posts/my-blog-management.html&quot;</span><span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb12-18" title="18">    <span class="kw">&lt;id&gt;</span>http://jujuba.me/posts/my-blog-management.html<span class="kw">&lt;/id&gt;</span></a>
+<a class="sourceLine" id="cb12-19" title="19">    <span class="kw">&lt;published&gt;</span>Apr 11, 2018<span class="kw">&lt;/published&gt;</span></a>
+<a class="sourceLine" id="cb12-20" title="20">    <span class="kw">&lt;updated&gt;</span>2018-06-29T18:30:02Z<span class="kw">&lt;/updated&gt;</span></a>
+<a class="sourceLine" id="cb12-21" title="21">    <span class="kw">&lt;summary&gt;</span>...<span class="kw">&lt;/summary&gt;</span></a>
+<a class="sourceLine" id="cb12-22" title="22">  <span class="kw">&lt;/entry&gt;</span></a>
+<a class="sourceLine" id="cb12-23" title="23"></a>
+<a class="sourceLine" id="cb12-24" title="24"><span class="kw">&lt;/feed&gt;</span></a></code></pre></div>
+<p>由于我的所有HTML文件都在同一文件夹下（posts/），所以我只需将该文件夹下的所有HTML文件都打开解析并提取我需要的内容即可。这里我写了个Python脚本来解决问题，主要使用BeautifulSoup这个库来解析一下HTML。</p>
+<p>这里有个问题就是<code>published</code>和<code>updated</code>这两个选项如何获取的问题。在之前的设置中，我一直没有这个需求，所有文章中并未包含关于本文章的写作时间及最后一次更新时间等信息，直到现在要写RSS Feed才发现，这里我们可以通过改一下Pandoc的HTML的模板来解决这个问题，我的Pandoc模板文件位于<code>/usr/local/Cellar/pandoc/2.2.1/share/x86_64-osx-ghc-8.4.2/pandoc-2.2.1/data/templates/default.html5</code>，同时，也可以通过<code>pandoc -D html</code>来查看当前模板的内容。</p>
+<p>打开之后，可以在该文件中添加如下自定义变量（自定义变量的使用可参考<a href="https://pandoc.org/MANUAL.html#using-variables-in-templates">此处</a>）：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><a class="sourceLine" id="cb13-1" title="1">$if(last_modified)$</a>
+<a class="sourceLine" id="cb13-2" title="2">  <span class="kw">&lt;meta</span><span class="ot"> name=</span><span class="st">&quot;last_modified&quot;</span><span class="ot"> content=</span><span class="st">&quot;$last_modified$&quot;</span> <span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb13-3" title="3">$endif$</a>
+<a class="sourceLine" id="cb13-4" title="4">$if(date)$</a>
+<a class="sourceLine" id="cb13-5" title="5">  <span class="kw">&lt;meta</span><span class="ot"> name=</span><span class="st">&quot;published&quot;</span><span class="ot"> content=</span><span class="st">&quot;$date$&quot;</span> <span class="kw">/&gt;</span></a>
+<a class="sourceLine" id="cb13-6" title="6">$endif$</a></code></pre></div>
+<p>我们可以通过传入last_modified和date两个变量来控制生成的HTML，这两个变量不仅可以通过我们之前提到的YAML文件来传入，更可以通过Shell来传入，这就十分方便了。回顾之前写的Makefile，我们可以将FLAG改为：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode makefile"><code class="sourceCode makefile"><a class="sourceLine" id="cb14-1" title="1"><span class="dt">FLAG </span><span class="ch">=</span><span class="st"> --standalone --mathjax --metadata last_modified=&quot;`date +%FT%TZ`&quot;</span></a></code></pre></div>
+<p>这样一来，每次生成新的HTML文件时，Makefile就自动将临时生成的时间戳（如<code>2018-06-30T09:58:26Z</code>）传入文件，免去了手动配置之苦。</p>
+<p>最后贴上我的RSS生成器代码：</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><a class="sourceLine" id="cb15-1" title="1"><span class="co">#! /usr/bin/env python3</span></a>
+<a class="sourceLine" id="cb15-2" title="2"><span class="co"># -*- coding: utf-8</span></a>
+<a class="sourceLine" id="cb15-3" title="3"></a>
+<a class="sourceLine" id="cb15-4" title="4"><span class="im">import</span> os</a>
+<a class="sourceLine" id="cb15-5" title="5"><span class="im">import</span> arrow</a>
+<a class="sourceLine" id="cb15-6" title="6"></a>
+<a class="sourceLine" id="cb15-7" title="7">path <span class="op">=</span> <span class="st">&#39;./posts/&#39;</span></a>
+<a class="sourceLine" id="cb15-8" title="8">html_names <span class="op">=</span> <span class="bu">list</span>(<span class="bu">filter</span>(<span class="kw">lambda</span> x: x[<span class="op">-</span><span class="dv">5</span>:] <span class="op">==</span> <span class="st">&#39;.html&#39;</span>, (os.listdir(path))))</a>
+<a class="sourceLine" id="cb15-9" title="9"></a>
+<a class="sourceLine" id="cb15-10" title="10">rss_preamble <span class="op">=</span> <span class="st">&quot;&lt;?xml version=</span><span class="ch">\&quot;</span><span class="st">1.0</span><span class="ch">\&quot;</span><span class="st"> encoding=</span><span class="ch">\&quot;</span><span class="st">UTF-8</span><span class="ch">\&quot;</span><span class="st"> ?&gt;&quot;</span></a>
+<a class="sourceLine" id="cb15-11" title="11"></a>
+<a class="sourceLine" id="cb15-12" title="12">rss_head <span class="op">=</span> <span class="st">&quot;&quot;&quot;</span></a>
+<a class="sourceLine" id="cb15-13" title="13"><span class="st">  &lt;feed xmlns=&quot;http://www.w3.org/2005/Atom&quot;&gt;</span></a>
+<a class="sourceLine" id="cb15-14" title="14"><span class="st">  &lt;title&gt;Ground Oddity&lt;/title&gt;</span></a>
+<a class="sourceLine" id="cb15-15" title="15"><span class="st">  &lt;link href=&quot;http://jujuba.me/&quot;/&gt;</span></a>
+<a class="sourceLine" id="cb15-16" title="16"><span class="st">  &lt;link href=&quot;http://jujuba.me/feed.xml&quot; rel=&quot;self&quot;/&gt;</span></a>
+<a class="sourceLine" id="cb15-17" title="17"><span class="st">  &lt;id&gt;http://jujuba.me/&lt;/id&gt;</span></a>
+<a class="sourceLine" id="cb15-18" title="18"><span class="st">&quot;&quot;&quot;</span></a>
+<a class="sourceLine" id="cb15-19" title="19">rss_head <span class="op">+=</span> <span class="st">&quot;&lt;updated&gt;&quot;</span> <span class="op">+</span> <span class="bu">str</span>(arrow.now()) <span class="op">+</span> <span class="st">&quot;&lt;/updated&gt;</span><span class="ch">\n</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb15-20" title="20"></a>
+<a class="sourceLine" id="cb15-21" title="21">rss_tail <span class="op">=</span> <span class="st">&#39;&lt;/feed&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-22" title="22">rss_body <span class="op">=</span> <span class="st">&#39;&#39;</span></a>
+<a class="sourceLine" id="cb15-23" title="23"></a>
+<a class="sourceLine" id="cb15-24" title="24"><span class="cf">try</span>: </a>
+<a class="sourceLine" id="cb15-25" title="25">    <span class="im">from</span> BeautifulSoup <span class="im">import</span> BeautifulSoup</a>
+<a class="sourceLine" id="cb15-26" title="26"><span class="cf">except</span> <span class="pp">ImportError</span>:</a>
+<a class="sourceLine" id="cb15-27" title="27">    <span class="im">from</span> bs4 <span class="im">import</span> BeautifulSoup</a>
+<a class="sourceLine" id="cb15-28" title="28"></a>
+<a class="sourceLine" id="cb15-29" title="29"><span class="cf">for</span> html_name <span class="kw">in</span> html_names:</a>
+<a class="sourceLine" id="cb15-30" title="30">  <span class="cf">with</span> <span class="bu">open</span>(path <span class="op">+</span> html_name, <span class="st">&#39;r&#39;</span>) <span class="im">as</span> html:</a>
+<a class="sourceLine" id="cb15-31" title="31">    parsed_html <span class="op">=</span> BeautifulSoup(html.read().encode(<span class="st">&#39;utf-8&#39;</span>), <span class="st">&quot;html5lib&quot;</span>)</a>
+<a class="sourceLine" id="cb15-32" title="32">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;entry&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-33" title="33">  title <span class="op">=</span> parsed_html.body.find(<span class="st">&#39;h1&#39;</span>, attrs<span class="op">=</span>{<span class="st">&#39;class&#39;</span>:<span class="st">&#39;title&#39;</span>}).text</a>
+<a class="sourceLine" id="cb15-34" title="34">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;title&gt;&#39;</span> <span class="op">+</span> title <span class="op">+</span> <span class="st">&#39;&lt;/title&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-35" title="35"></a>
+<a class="sourceLine" id="cb15-36" title="36">  published <span class="op">=</span> parsed_html.find(<span class="st">&#39;meta&#39;</span>, attrs<span class="op">=</span>{<span class="st">&#39;name&#39;</span>:<span class="st">&quot;published&quot;</span>}).get(<span class="st">&quot;content&quot;</span>)</a>
+<a class="sourceLine" id="cb15-37" title="37">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;published&gt;&#39;</span> <span class="op">+</span> published <span class="op">+</span> <span class="st">&#39;&lt;/published&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-38" title="38"></a>
+<a class="sourceLine" id="cb15-39" title="39">  updated <span class="op">=</span> parsed_html.find(<span class="st">&#39;meta&#39;</span>, attrs<span class="op">=</span>{<span class="st">&#39;name&#39;</span>:<span class="st">&quot;last_modified&quot;</span>}).get(<span class="st">&quot;content&quot;</span>)</a>
+<a class="sourceLine" id="cb15-40" title="40">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;updated&gt;&#39;</span> <span class="op">+</span> updated <span class="op">+</span> <span class="st">&#39;&lt;/updated&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-41" title="41"></a>
+<a class="sourceLine" id="cb15-42" title="42">  url <span class="op">=</span> <span class="st">&#39;http://jujuba.me/posts/&#39;</span> <span class="op">+</span> html_name</a>
+<a class="sourceLine" id="cb15-43" title="43">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;link href=&quot;&#39;</span> <span class="op">+</span> url <span class="op">+</span> <span class="st">&#39;&quot;/&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-44" title="44">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;id&gt;&#39;</span> <span class="op">+</span> url <span class="op">+</span> <span class="st">&#39;&lt;/id&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-45" title="45">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;author&gt; &lt;name&gt;Jiahao Cai&lt;/name&gt; &lt;/author&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-46" title="46"></a>
+<a class="sourceLine" id="cb15-47" title="47">  contents <span class="op">=</span> <span class="bu">str</span>(parsed_html.body).replace(<span class="st">&#39;&lt;body&gt;&#39;</span>, <span class="st">&#39;&#39;</span>).replace(<span class="st">&#39;&lt;/body&gt;&#39;</span>, <span class="st">&#39;&#39;</span>)</a>
+<a class="sourceLine" id="cb15-48" title="48">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;summary type=&quot;html&quot;&gt;&#39;</span> <span class="op">+</span> <span class="st">&#39;&lt;![CDATA[ &#39;</span> <span class="op">+</span> contents[<span class="dv">0</span>:<span class="dv">500</span>] <span class="op">+</span> <span class="st">&#39; ]]&gt;&#39;</span> <span class="op">+</span> <span class="st">&#39;&lt;/summary&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-49" title="49">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;content type=&quot;html&quot;&gt;&#39;</span> <span class="op">+</span> <span class="st">&#39;&lt;![CDATA[ &#39;</span> <span class="op">+</span> contents <span class="op">+</span> <span class="st">&#39; ]]&gt;&#39;</span> <span class="op">+</span> <span class="st">&#39;&lt;/content&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-50" title="50">  rss_body <span class="op">+=</span> <span class="st">&#39;&lt;/entry&gt;&#39;</span></a>
+<a class="sourceLine" id="cb15-51" title="51"></a>
+<a class="sourceLine" id="cb15-52" title="52"></a>
+<a class="sourceLine" id="cb15-53" title="53"><span class="cf">with</span> <span class="bu">open</span>(<span class="st">&#39;atom.xml&#39;</span>, <span class="st">&#39;w&#39;</span>) <span class="im">as</span> feed:</a>
+<a class="sourceLine" id="cb15-54" title="54">  feed.write(rss_preamble)</a>
+<a class="sourceLine" id="cb15-55" title="55">  feed.write(rss_head)</a>
+<a class="sourceLine" id="cb15-56" title="56">  feed.write(rss_body)</a>
+<a class="sourceLine" id="cb15-57" title="57">  feed.write(rss_tail)</a></code></pre></div>
+<p><a name="sync"></a></p>
+<h2 id="synchronize">5. Synchronize</h2>
+<p>这些都解决了之后，要将博客文件传送到服务器上，怎么传送是个问题。如果每次都将全部文件重新传一遍，肯定是太慢了，特别从国内往国外服务器传文件的时候，根本受不了，这里我使用<a href="https://en.wikipedia.org/wiki/Rsync">rsync</a>这个工具来传送文件。rsync会在传输之前将服务器端的文件与本地文件做一个对比，然后只传输被修改过的文件，不仅如此，rsync还可以使用<code>-z</code>参数将文件在传输过程中打包，大大提高了传输速度。</p>
+<p>在Makefile中增加以下内容：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode makefile"><code class="sourceCode makefile"><a class="sourceLine" id="cb16-1" title="1"><span class="dv">sync:</span></a>
+<a class="sourceLine" id="cb16-2" title="2">    <span class="ch">@</span><span class="fu">rsync -avz ~/blog/ username@127.0.0.1:/var/www/html</span></a></code></pre></div>
+<p>接下来就可以直接通过<code>make sync</code>来将我的博客同步到服务器端了。</p>
+<hr />
+<p>Update:<br />
+我把我的博客开源了，你可以在<a href="https://github.com/jiahao42/blog">这里</a>找到它。</p>
+<p>(The End)</p>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

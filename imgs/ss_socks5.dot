@@ -1,0 +1,31 @@
+digraph ss_arch {
+  labelloc="t"
+  label = "Details about SOCKS5 in Shadowsocks"
+  node [shape=oval];
+  graph [rankdir=LR, fontsize=25, nodesep="1"];
+  /* xlabel [fontname=Helvetica, fontcolor=red, fontsize=10]; */
+  subgraph clusterClient {
+    graph [ label="Client", color="blue", fontsize=20 ]
+    stage_0, stage_2, stage_4, _stage_5
+  }
+  subgraph clusterLocal {
+    graph [ label="Local", color="red", fontsize=20 ]
+    stage_1, stage_3, stage_5
+  }
+  
+  server [shape = rectangle, fontsize=25]
+  remote [shape = rectangle, fontsize=25]
+  stage_0 -> stage_1 [label = "1. \"\\x05\x01\x00\""]
+  stage_1 -> stage_2 [label = "2. \"\x05\x00\""]
+  stage_2 -> stage_3[label = "3. dest_addr & dest_port"]
+  stage_3 -> stage_4 [label = "4. success"]
+  stage_4 -> stage_5 [label = "5. sending requests"]
+  stage_5 -> server [label = "6. sending encrypted requests"]
+  server -> remote [label = "7. sending decrypted requests"]
+  remote -> server [label = "8. sending response"]
+  server -> stage_5 [label = "9. sending encrypted responses"]
+  stage_5 -> _stage_5 [label = "10. sending decrypted responses"]
+  _stage_5 [label = "stage 5"]
+  _stage_5 -> stage_5 [label = "11. sending more requests"]
+
+}

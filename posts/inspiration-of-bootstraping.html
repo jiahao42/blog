@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="last_modified" content="2020-03-06T11:20:42Z" />
+  <meta name="published" content="Sep 1, 2018" />
+  <title>自举的启发</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">自举的启发</h1>
+<p class="date">Sep 1, 2018</p>
+</header>
+<p><img src="../imgs/bootstrap.png" alt="bootstrap" style="height: 300px;"/></p>
+<p><strong>了解编译器自举的读者可以直接跳到分割线以下看。</strong></p>
+<p>构建编译器过程中有个有趣的概念，叫做自举（<a href="https://en.wikipedia.org/wiki/Bootstrapping_(compilers)">Bootstrapping</a>）。大意就是说，假设我要创造一门X语言，那我必然要为X语言写一个编译器or解释器，如果这个编译器就是用X语言写的，那么这个用X语言写X语言编译器的过程就是自举。当然现实并没有这么简单，因为写编译器之时，X语言并不存在，所以也无法用X语言写编译器，这就陷入了一个先有鸡还是先有蛋的困境。常见做法是：</p>
+<ul>
+<li>用另一种语言（如C）完成X语言的编译器的一部分，不需要太复杂，只需要能编译X语言的一个核心子集即可，</li>
+<li>用X语言写出X语言编译器，之前面临的问题是没有编译器能将X语言源码变成二进制代码，但由于此时我们有了C语言写出来的编译器，我们就可以得到X语言写出的编译器的二进制代码了，</li>
+<li>丢到C语言实现的编译器，用X语言实现的编译器继续拓展迭代下一个版本的编译器，直到完成。</li>
+</ul>
+<p>不常见的做法请见<a href="https://www.zhihu.com/question/28513473/answer/76068366">此处</a>。</p>
+<hr />
+<p>好了科普完毕，这些其实都不是我想说的，我想说的是我今天突然意识到自举这个概念在生活中重要性。</p>
+<p>比如学英语的过程其实应该是自举的过程，可是有多少人学了十几年还没开始自举呢？学英语的自举过程就应该是，一开始我们使用中文去学英语，当学完了英语的一个核心子集的时候，我们就应该使用英语去解释英语，一个简单的做法就是使用英英字典。再比如说，出国在外和人交谈，当对方说了一个你不懂的词的时候，你不应该掏出手机，再请对方一个个字母地拼出这个词，然后在手机上查出这个词的中文意思，正确的做法应该就是请他用英语中的其他词来解释这个词。</p>
+<p>换个角度思考，C语言代表了舒适区，而X语言代表着新的领域，自举的过程也许更痛苦一些，但是也会让人成长得更快。</p>
+<p>(The End)</p>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

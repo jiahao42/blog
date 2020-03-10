@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="last_modified" content="2020-03-06T11:20:44Z" />
+  <meta name="published" content="Aug 20, 2018" />
+  <title>SICP笔记 - 递归与迭代</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">SICP笔记 - 递归与迭代</h1>
+<p class="date">Aug 20, 2018</p>
+</header>
+<p><img src="../imgs/sicp-cover.png" alt="sicp-cover" style="height: 300px;"/></p>
+<p>这篇文章会很简短，因为我只准备谈一个简单的问题，就是递归与迭代之间的转换技巧。在我看了80页SICP之后，我觉得我有必要记下这个技巧，很难想象我从前从来没有总结过这个技巧，只是模糊地思考。</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb1-1" title="1">(define (factorial n)</a>
+<a class="sourceLine" id="cb1-2" title="2">  (<span class="kw">if</span> (<span class="op">=</span> n <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb1-3" title="3">    <span class="dv">1</span></a>
+<a class="sourceLine" id="cb1-4" title="4">    (<span class="op">*</span> n (factorial (<span class="op">-</span> n <span class="dv">1</span>)))))</a></code></pre></div>
+<p>拿最简单的阶乘（Factorial）来说好了，当我们使用一段递归程序来计算6的阶乘的时候（譬如上面这段Lisp程序），稍微有点基础的人都知道，程序内部的堆栈是这样的：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb2-1" title="1">(factorial <span class="dv">6</span>)</a>
+<a class="sourceLine" id="cb2-2" title="2">(<span class="op">*</span> <span class="dv">6</span> (factorial <span class="dv">5</span>))</a>
+<a class="sourceLine" id="cb2-3" title="3">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (factorial <span class="dv">4</span>)))</a>
+<a class="sourceLine" id="cb2-4" title="4">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> (factorial <span class="dv">3</span>))))</a>
+<a class="sourceLine" id="cb2-5" title="5">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> (<span class="op">*</span> <span class="dv">3</span> (factorial <span class="dv">2</span>)))))</a>
+<a class="sourceLine" id="cb2-6" title="6">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> (<span class="op">*</span> <span class="dv">3</span> (<span class="op">*</span> <span class="dv">2</span> (factorial <span class="dv">1</span>))))))</a>
+<a class="sourceLine" id="cb2-7" title="7">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> (<span class="op">*</span> <span class="dv">3</span> (<span class="op">*</span> <span class="dv">2</span> <span class="dv">1</span>)))))</a>
+<a class="sourceLine" id="cb2-8" title="8">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> (<span class="op">*</span> <span class="dv">3</span> <span class="dv">2</span>))))</a>
+<a class="sourceLine" id="cb2-9" title="9">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> (<span class="op">*</span> <span class="dv">4</span> <span class="dv">6</span>)))</a>
+<a class="sourceLine" id="cb2-10" title="10">(<span class="op">*</span> <span class="dv">6</span> (<span class="op">*</span> <span class="dv">5</span> <span class="dv">24</span>))</a>
+<a class="sourceLine" id="cb2-11" title="11">(<span class="op">*</span> <span class="dv">6</span> <span class="dv">120</span>)</a>
+<a class="sourceLine" id="cb2-12" title="12"><span class="dv">720</span></a></code></pre></div>
+<p>现在请思考，如果要实现递归，我们最需要的计算机特性是什么？</p>
+<p>我觉得应该是计算机可以保存现场与恢复现场的能力。打个比方，层层递归就好像往一条小路上走，一直走到尽头，但是在走的过程中，你必须记下路上的标记，因为你最终需要回到你走的起点。在这个例子中，程序想要知道<code>(* 6 (factorial 5))</code>的值，它就必须知道<code>(factorial 5)</code>的值，但是同时，它也必须记住<code>6</code>这个值，因为后续我们还会用到，只是现在它用不到罢了。</p>
+<p>这样思考之后，递归的本质就明显了，我认为递归的本质就是迭代，不同之处在于，递归利用程序内部的堆栈来存储中间变量，而迭代使用参数来存储中间变量。如果想要将一段递归程序转换为一段迭代程序，只需增加几个参数即可，参数的个数取决于这段程序需要的中间变量的个数。</p>
+<p>如此一来，计算阶乘的递归程序可以改写为以下的迭代程序：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb3-1" title="1">(define (factorial n)</a>
+<a class="sourceLine" id="cb3-2" title="2">  (define (fact-iter product counter max-count)</a>
+<a class="sourceLine" id="cb3-3" title="3">    (<span class="kw">if</span> (<span class="op">&gt;</span> counter max-count)</a>
+<a class="sourceLine" id="cb3-4" title="4">      product</a>
+<a class="sourceLine" id="cb3-5" title="5">      (fact-iter (<span class="op">*</span> counter product)</a>
+<a class="sourceLine" id="cb3-6" title="6">                 (<span class="op">+</span> counter <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-7" title="7">                 max-count)))</a>
+<a class="sourceLine" id="cb3-8" title="8">  (fact-iter <span class="dv">1</span> <span class="dv">1</span> n))</a></code></pre></div>
+<p>除了递归程序中原有的参数<code>n</code>以外，这里又加上了<code>product</code>与<code>counter</code>参数，发现了吗？其实<code>product</code>与<code>counter</code>两个参数所扮演的角色就是堆栈在递归程序中所扮演的角色。所以递归程序如何变成迭代程序呢？加参数就可以了。</p>
+<p>递归与迭代，一个用堆栈记录信息，一个用参数记录信息，仅此而已。</p>
+<p>(The End)</p>
+<!--
+
+                            fib 5
+                        /           \
+                      /               \
+                    /                   \
+                  /                       \
+                /                           \
+             fib 4                        fib 3
+           /        \                     /    \
+          /          \                   /      \
+         /            \                fib 2    fib 1
+        /              \               /   \      |    
+      fib 3           fib 2           /     \     |    
+      /    \          /   \         fib 1  fib 0  1      
+     /      \        /     \          |      |            
+   fib 2    fib 1  fib 1  fib 0       |      |             
+   /   \      |      |      |         1      0           
+  /     \     |      |      |                 
+fib 1  fib 0  1      1      0                     
+  |      |      
+  |      |      
+  1      0  
+-->
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

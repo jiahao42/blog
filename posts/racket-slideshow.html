@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="keywords" content="Lisp, Racket, slideshow, ppt, slides, slideshow-latex" />
+  <meta name="last_modified" content="2020-03-06T11:28:35Z" />
+  <meta name="published" content="Jun 2, 2018" />
+  <title>用Lisp写slides</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">用Lisp写slides</h1>
+<p class="date">Jun 2, 2018</p>
+</header>
+<p><img src="../imgs/lisp-logo.png" alt="Lisp logo" height="150" style="margin-left:60pt"/> <img src="../imgs/scheme-logo.png" alt="Scheme logo" height="150" style="margin-left:60pt"/> <img src="../imgs/racket-logo.png" alt="Racket logo" height="150" style="margin-left:60pt"/></p>
+<h2 id="lisp-scheme-or-racket">0. Lisp, Scheme, or Racket?</h2>
+<p>Lisp，诞生于1958年，世界上第二古老的编程语言，仅次于Fortran。在之后的漫长岁月里，Lisp发生了很多改变，也产生了很多所谓的“方言”，当现在的我们提到Lisp时，我们更多地是指Lisp系的语言。在这些“方言”中，最著名的莫过于Common Lisp和Scheme了。这篇文章要用到的语言叫做Racket，Racket之前叫做PLT Scheme，顾名思义Racket是由Scheme演化而来的，至于PLT的含义已不可考，一般认为是指<a href="https://stackoverflow.com/questions/13724714/what-does-the-plt-in-plt-scheme-now-called-racket-stand-for">Programming Language Team</a>。</p>
+<p>我对Lisp的兴趣，甚至于说我对整个Programming Language Theory的兴趣，都来自于两件事。 一是我大一大二的时候沉迷于逆向破解，觉得<a href="https://www.hex-rays.com/products/ida/">IDA</a>这种软件实在是太神奇了，把要分析的程序丢进去，按一下F5居然就可以将一堆二进制转换成C语言的伪代码，我觉得这一定很困难吧，更不用说现代编译器对代码的各种优化了，这里面一定藏着编程的秘密 :) 第二件事是因为一个叫<a href="http://www.yinwang.org/">王垠</a>的人，我觉得程序员里不少人应该都听过他的名字。我是在大三的时候看到他的博客的，那时候的我就像发现了一个宝藏一样，每天都要读几篇他的文章（尽管我已经看了好多遍），看好几次他今天有没有更新博客，甚至连检查电脑连不连网都是用的<code>ping www.yinwang.org</code>，活脱脱一个小迷弟。当然了，很可惜的是，他无法成为我永远的偶像，如果真是那样，那只能说明我的水平停滞不前了，which is 非常不好的，就像他在<a href="http://www.yinwang.org/blog-cn/2014/08/11/genius">怎样成为一个天才</a>里说的：</p>
+<blockquote>
+<p>要成为天才，必须要能够打破别人设下的思维圈套。去除自己头脑里的各种权威，是非常重要的事情。你必须首先在心理上把自己放在跟本领域的权威平起平坐的地位，才能有效地对他们的想法做出判断和消化。我喜欢对权威显示出藐视的态度，就是这个原因，这是一种“矫枉过正”的方法。因为他们最开头在我心里还占有很重要的地位，为了把他们轰下去，我最开头是很激烈的藐视。到后来自己的认识因此迅速加深之后，才开始慢慢的理解到他们其中一些想法的启发意义。最后那种激烈的情绪逐渐消亡，他们在我心里也就变成了很普通的人。</p>
+</blockquote>
+<p>不过，我从他的博客里学到的那些珍贵的知识，却是可以使我受益终身的，正如他在<a href="http://www.yinwang.org/blog-cn/2017/11/01/power-of-reasoning">理性的力量</a>所里写到的，</p>
+<blockquote>
+<p>这些话有它们自己的地位，它们不属于我，不依赖于我，它们本身就是一种成就。如果有人想用我的话去说服另一个人，他不需要告诉他：“王垠说……” 他只需要告诉他是什么，为什么，就像转述一个定理一样。这就是为什么王垠打倒了很多人心中的权威，而他自己并没有成为新的权威。他说了如此多有重大价值的内容，却经常被一些刚学会 Python 的初学者鄙视。这就是所谓“上善若水” :p</p>
+</blockquote>
+<p>似乎扯得太远了，回到正题，王垠的博客里有好几篇写Lisp的文章，有兴趣的可以看一看，比如下面几篇：</p>
+<ul>
+<li><a href="http://www.yinwang.org/blog-cn/2012/08/01/interpreter">怎样写一个解释器</a></li>
+<li><a href="http://www.yinwang.org/blog-cn/2013/03/08/on-syntax">谈语法</a></li>
+<li><a href="http://www.yinwang.org/blog-cn/2013/03/26/lisp-dead-alive">Lisp 已死，Lisp 万岁！</a></li>
+</ul>
+<h2 id="slideshow">1. <a href="https://docs.racket-lang.org/slideshow/index.html">Slideshow</a></h2>
+<p>Slideshow是一个Racket库，专门用来写presentation用的slides，作者是<a href="http://www.cs.utah.edu/~mflatt/">Matthew Flatt</a>和<a href="https://www.eecs.northwestern.edu/~robby/">Robby Findler</a>。</p>
+<p>在macOS上，<a href="https://download.racket-lang.org/">安装Racket</a>的同时会自带slideshow，我们打开slideshow之后可以看到有一个Run Tutorial的选项，</p>
+<p>Slideshow自带一套非常实用的教程，该教程本身就是用slideshow写的，我将该教程打印成了pdf，可以点击<a href="../resources/slideshow-tutorial.pdf">这里</a>查看slideshow写出来的效果。</p>
+<p>Slideshow的语法非常简洁，比如下面的代码：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb1-1" title="1">(slide</a>
+<a class="sourceLine" id="cb1-2" title="2">  #:name <span class="st">&quot;Title Slide&quot;</span></a>
+<a class="sourceLine" id="cb1-3" title="3">  (titlet <span class="st">&quot;Slideshow Tutorial&quot;</span>)</a>
+<a class="sourceLine" id="cb1-4" title="4">  (blank)</a>
+<a class="sourceLine" id="cb1-5" title="5">  (size-in-pixels</a>
+<a class="sourceLine" id="cb1-6" title="6">    (bitmap (collection-file-path <span class="st">&quot;PLT-206.png&quot;</span> <span class="st">&quot;icons&quot;</span>)))</a>
+<a class="sourceLine" id="cb1-7" title="7">  (blank)</a>
+<a class="sourceLine" id="cb1-8" title="8">    (colorize (it <span class="st">&quot;Press the spacebar to continue&quot;</span>) <span class="st">&quot;blue&quot;</span>)</a>
+<a class="sourceLine" id="cb1-9" title="9">  (comment <span class="st">&quot;Welcome to Slideshow&quot;</span>))</a></code></pre></div>
+<p>会生成如下slide：</p>
+<p><img src="../imgs/slideshow_0.png" alt="slideshow_0" style="height: 400px;"/></p>
+<p>Slideshow拥有不俗的Text alignment能力：</p>
+<p><img src="../imgs/slideshow_1.png" alt="slideshow_1" style="height: 400px;"/></p>
+<p>也可以很好地显示代码和使用bullet point：</p>
+<p><img src="../imgs/slideshow_2.png" alt="slideshow_1" style="height: 400px;"/></p>
+<p>或者使用<code>alts</code>和<code>next</code>关键字来控制slide中内容出现的先后次序，<code>alts</code>关键字后接一个由list组成的list，每个list代表下一次点击后要显示的内容，需要注意的是下一个list中的内容会将上一个list中的内容给覆盖掉。</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb2-1" title="1">(slide</a>
+<a class="sourceLine" id="cb2-2" title="2"> #:title <span class="st">&quot;Alternatives&quot;</span></a>
+<a class="sourceLine" id="cb2-3" title="3"> (para <span class="st">&quot;Steps can break up a linear slide, but sometimes&quot;</span></a>
+<a class="sourceLine" id="cb2-4" title="4">            <span class="st">&quot;you need to replace one thing with something else&quot;</span>)</a>
+<a class="sourceLine" id="cb2-5" title="5"> &#39;alts </a>
+<a class="sourceLine" id="cb2-6" title="6"> (<span class="kw">list</span> (<span class="kw">list</span> </a>
+<a class="sourceLine" id="cb2-7" title="7">        (para #:fill? <span class="dv">#f</span> <span class="st">&quot;For example, replace this...&quot;</span>))</a>
+<a class="sourceLine" id="cb2-8" title="8">       (<span class="kw">list</span></a>
+<a class="sourceLine" id="cb2-9" title="9">        (para #:fill? <span class="dv">#f</span> <span class="st">&quot;... with something else&quot;</span>)</a>
+<a class="sourceLine" id="cb2-10" title="10">        &#39;next</a>
+<a class="sourceLine" id="cb2-11" title="11">        (blank)</a>
+<a class="sourceLine" id="cb2-12" title="12">        (item <span class="st">&quot;An&quot;</span> (code &#39;alts) <span class="st">&quot;in a sequence&quot;</span></a>
+<a class="sourceLine" id="cb2-13" title="13">                   <span class="st">&quot;must be followed by a list of lists&quot;</span>)</a>
+<a class="sourceLine" id="cb2-14" title="14">        (item <span class="st">&quot;Each list is a sequence, a different conclusion for the slide&#39;s sequence&quot;</span>))))</a></code></pre></div>
+<p>如果不想将旧的内容覆盖掉，可以使用<code>next</code>关键字：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb3-1" title="1">(slide</a>
+<a class="sourceLine" id="cb3-2" title="2"> #:title <span class="st">&quot;Steps&quot;</span></a>
+<a class="sourceLine" id="cb3-3" title="3"> (item <span class="st">&quot;Suppose you want to show only one item at a time&quot;</span>)</a>
+<a class="sourceLine" id="cb3-4" title="4"> &#39;next</a>
+<a class="sourceLine" id="cb3-5" title="5"> (item <span class="st">&quot;In addition to body picts, the&quot;</span> (code slide) </a>
+<a class="sourceLine" id="cb3-6" title="6">            <span class="st">&quot;functions recognize certain staging symbols&quot;</span>)</a>
+<a class="sourceLine" id="cb3-7" title="7"> (item <span class="st">&quot;Use&quot;</span> (code &#39;next) <span class="st">&quot;in a sequence of&quot;</span> (code slide)</a>
+<a class="sourceLine" id="cb3-8" title="8">            <span class="st">&quot;arguments to create multiple slides, one&quot;</span></a>
+<a class="sourceLine" id="cb3-9" title="9">            <span class="st">&quot;containing only the preceding content, and another&quot;</span></a>
+<a class="sourceLine" id="cb3-10" title="10">            <span class="st">&quot;with the remainder&quot;</span>)</a>
+<a class="sourceLine" id="cb3-11" title="11"> &#39;next</a>
+<a class="sourceLine" id="cb3-12" title="12"> (blank)</a>
+<a class="sourceLine" id="cb3-13" title="13"> (colorize</a>
+<a class="sourceLine" id="cb3-14" title="14">  (para #:fill? <span class="dv">#f</span></a>
+<a class="sourceLine" id="cb3-15" title="15">        (code &#39;next) <span class="st">&quot;is not tied to&quot;</span> (code item)</a>
+<a class="sourceLine" id="cb3-16" title="16">        <span class="st">&quot;, though it&#39;s often used with items&quot;</span>)</a>
+<a class="sourceLine" id="cb3-17" title="17">  <span class="st">&quot;blue&quot;</span>))</a></code></pre></div>
+<h2 id="latex-in-slideshow">2. <a href="https://docs.racket-lang.org/slideshow-latex/index.html">LaTeX in slideshow</a></h2>
+<p>写slides的时候往里面插入LaTeX是一个非常常见的需求，最近keynote发布了新版本，开始原生支持LaTeX了，这个特性还是很棒的，虽然迟来了很多年 :)</p>
+<p>有人也为slideshow写了一个package叫做<a href="https://github.com/jeapostrophe/slideshow-latex">slideshow-latex</a>，这个包可以让你在slideshow中插入LaTeX公式，其本质是调用了latex来生成一个dvi文件，再调用dvipng将其转换为png文件并插入slide中。这个包有些亟待解决的问题，比如生成的图片的清晰度不够，以及使用该包之后会导致slideshow将slides转为pdf时失败（<code>slideshow --print example.rkt</code>），而且作者最近一次更新这个包是在三年多以前，所以我也并不指望作者会修正这个bug。</p>
+<p>这个包可以通过raco来安装，raco是属于Racket的command-line tool，macOS下可以通过homebrew来进行安装，</p>
+<pre class="shell"><code>brew install raco</code></pre>
+<p>然后通过raco来安装slideshow-latex，</p>
+<pre class="shell"><code>raco pkg install slideshow-latex</code></pre>
+<p>在macOS上，要使用该包，必须更改latex和dvipng的默认路径，位于<code>slideshow-latex/slideshow/latex/latex2bitmap.rkt</code>的<a href="https://github.com/jeapostrophe/slideshow-latex/blob/master/slideshow/latex/latex2bitmap.rkt#L42">42-45行</a>。</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb6-1" title="1"><span class="co">;; Default paths</span></a>
+<a class="sourceLine" id="cb6-2" title="2">(define latex-path (make-parameter (find-executable <span class="st">&quot;latex&quot;</span> <span class="st">&quot;/usr/bin&quot;</span>)))</a>
+<a class="sourceLine" id="cb6-3" title="3">(define dvipng-path (make-parameter (find-executable <span class="st">&quot;dvipng&quot;</span> <span class="st">&quot;/usr/bin&quot;</span>)))</a>
+<a class="sourceLine" id="cb6-4" title="4">(define cache-path (make-parameter (find-system-path &#39;temp-dir)))</a></code></pre></div>
+<p>设置好之后，就可以在slideshow中使用LaTeX了，使用语法非常简单，就跟原生LaTeX差不多。</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode lisp"><code class="sourceCode commonlisp"><a class="sourceLine" id="cb7-1" title="1">($<span class="st">&quot;</span><span class="sc">\\</span><span class="st">N&quot;</span>)</a>
+<a class="sourceLine" id="cb7-2" title="2">($$<span class="st">&quot;</span><span class="sc">\\</span><span class="st">int_{-</span><span class="sc">\\</span><span class="st">infty}^</span><span class="sc">\\</span><span class="st">infty e^{-x^2}</span><span class="sc">\\</span><span class="st">,dx&quot;</span>)</a></code></pre></div>
+<h2 id="conclusion">3. Conclusion</h2>
+<p>总结一下就是，slideshow是一个还不错的写slides的工具，很适合写写简单简洁的slides。同时它也可以作为练习一个Lisp系语言的方式，通过阅读slideshow以及slideshow-latex的源码，我们也可以感受到高手是如何使用Racket写软件的。随着自己的Racket水平的提升，说不定我能在使用slideshow的过程中寻找到更多的乐趣 :)</p>
+<p>(The End)</p>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

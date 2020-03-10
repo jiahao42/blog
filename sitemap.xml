@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+<url>
+  <loc>http://idle.systems/</loc>
+  <priority>1.00</priority>
+</url>
+<url>
+  <loc>http://idle.systems/about.html</loc>
+  <priority>0.80</priority>
+</url>
+<url>
+	<loc>http://idle.systems/posts/travel-in-europe.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/terminal_music.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/racket-slideshow.html</loc>
+	<lastmod>2020-03-06T11:28:35Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/roaming-in-the-world.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/stockholm-visit.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/inspiration-of-bootstraping.html</loc>
+	<lastmod>2020-03-06T11:20:42Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/thoughts.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/life-in-sweden.html</loc>
+	<lastmod>2020-03-06T11:20:42Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/apply_master_in_sweden.html</loc>
+	<lastmod>2020-03-06T11:20:42Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/reservoir_computing.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/shadowsocks_in_ruby.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/sicp-art-of-abstraction.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/sicp-recursion-iteration.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/program-analysis-via-llvm-pass.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/my-blog-management.html</loc>
+	<lastmod>2020-03-06T11:28:35Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/2019-march.html</loc>
+	<lastmod>2020-03-06T11:20:42Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/quote_from_jobs.html</loc>
+	<lastmod>2020-03-06T11:20:43Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/taste-of-code.html</loc>
+	<lastmod>2020-03-06T11:20:44Z</lastmod>
+	<priority>0.80</priority>
+</url><url>
+	<loc>http://idle.systems/posts/I-quitted-phd.html</loc>
+	<lastmod>2020-03-06T11:22:14Z</lastmod>
+	<priority>0.80</priority>
+</url></urlset>

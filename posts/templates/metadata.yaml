@@ -1,0 +1,24 @@
+---
+lang: zh
+header-includes:
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/>
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" /> 
+    <meta name="author" content="Jiahao Cai">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />  
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'UA-116308654-1');
+    </script>
+include-before:
+    <a id="return" href="/">
+    <img src="/static/logo.png" style="width:25%;float:right">
+    </a>
+include-after:
+    <a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+---

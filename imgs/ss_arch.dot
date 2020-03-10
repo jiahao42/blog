@@ -1,0 +1,25 @@
+digraph ss_arch {
+  labelloc="t"
+  label = "Architecture of Shadowsocks"
+  node [shape=rectangle];
+  graph [rankdir=LR, nodesep="1", fontsize=25];
+  
+  client -> ss_local [label = "1. send requests"]
+  ss_local -> client [label = "8. send decrypted responses"]
+  
+
+  ss_local -> GFW [label = "2. send encrypted requests"]
+  GFW -> ss_server [label = "3. forward encrypted requests"]
+
+  ss_server -> remote [label = "4. send decrypted requests"]
+  remote -> ss_server [label = "5. send responses"]
+
+  ss_server -> GFW [label = "6. send encrypted responses"]
+  GFW -> ss_local [label = "7. forward encrypted responses"]
+  
+  client -> remote [style=invis]
+  
+  // {rank=same; client, ss_local, GFW, ss_server, remote}
+  // {rank=same; ss_local, GFW}
+
+}

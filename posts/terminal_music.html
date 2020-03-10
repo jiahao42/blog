@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="keywords" content="terminal, 终端播放音乐, 终端, 终端听歌, afplay, 在命令行中播放音乐, 命令行" />
+  <meta name="last_modified" content="2020-03-06T11:20:44Z" />
+  <meta name="published" content="Apr 10, 2018" />
+  <title>如何在终端中优雅地听歌</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">如何在终端中优雅地听歌</h1>
+<p class="date">Apr 10, 2018</p>
+</header>
+<p><img src="../imgs/terminal_music.png" alt="play_music_in_terminal" style="height: 350px;"/></p>
+<h2 id="起因">0. 起因</h2>
+<p>起因就是对探索新歌失去了兴趣，并且觉得各种音乐播放软件都不怎么好用，而且懒癌发作，觉得写代码的时候想要换歌还要切换到音乐播放器再切回来实在太烦了。于是我把自己喜欢听的歌都下载下来了，放到一个文件夹里，准备用终端播放。整个过程非常简单，我所需要的只是一个想法和几行代码，迭代几次就搞定了。</p>
+<h2 id="几次迭代">1. 几次迭代</h2>
+<p>查了一下网上所谓的终端音乐播放器，似乎都不怎么样，有些还写了巨丑无比的UI，在命令行里画UI是个需要taste的事，画不好就会很丑，显然我不需要这些东西。找着找着，发现macOS上本来就有个命令行播放器，叫afplay，用法也很简单afplay后面加文件名就OK了，我想了想就用它了吧。</p>
+<p>一开始想要的功能很简单，我需要方便地随机播放文件夹下的所有歌曲。我想了想，在<code>.zshrc</code>里写下了如下代码：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb1-1" title="1"><span class="va">BYel=</span><span class="st">&#39;\e[0;33m&#39;</span>;</a>
+<a class="sourceLine" id="cb1-2" title="2"><span class="kw">function</span><span class="fu"> m()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb1-3" title="3">    <span class="va">m_path=</span>~/Music/</a>
+<a class="sourceLine" id="cb1-4" title="4"></a>
+<a class="sourceLine" id="cb1-5" title="5">    <span class="va">song_num=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">wc</span> -l<span class="va">)</span><span class="st">&quot;</span>                 <span class="co"># Total number of songs</span></a>
+<a class="sourceLine" id="cb1-6" title="6">    <span class="va">timestamp=$(</span><span class="fu">date</span> +%s<span class="va">)</span>                       <span class="co"># Timestamp as millsecond, e.g. 1523305473</span></a>
+<a class="sourceLine" id="cb1-7" title="7">    <span class="va">song_index=$(($timestamp</span>%<span class="va">$song_num</span>+1<span class="va">))</span>      <span class="co"># Generate a random song index</span></a>
+<a class="sourceLine" id="cb1-8" title="8"></a>
+<a class="sourceLine" id="cb1-9" title="9">    <span class="va">song=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">sed</span> -n <span class="st">&quot;</span><span class="va">$song_index</span><span class="st">&quot;</span>p<span class="va">)</span><span class="st">&quot;</span>     <span class="co"># Get the name of the certain song</span></a>
+<a class="sourceLine" id="cb1-10" title="10">    <span class="bu">echo</span> -e <span class="st">&quot;</span><span class="va">${BYel}$song</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb1-11" title="11">    <span class="ex">afplay</span> <span class="st">&quot;</span><span class="va">$m_path$song</span><span class="st">&quot;</span>                            <span class="co"># Play it!</span></a>
+<a class="sourceLine" id="cb1-12" title="12"><span class="kw">}</span></a></code></pre></div>
+<p>这样的话，每次我在终端里输入<code>m</code>，就可以随机播放一首歌曲。但是此时我面临了四个问题：</p>
+<ol type="1">
+<li>我不希望我为了这个“播放器”单独开一个终端，每次我要切歌，我还得先切到那个终端，</li>
+<li>当我连续切歌时，随机性很差，因为文件是按文件名排序的，连续切歌时，时间戳增长不多，往往放来放去都是同一个人的歌，</li>
+<li>目前的播放器实在太佛系了，只能随机放歌，其实有时候我也会想定向检索一首歌的，</li>
+<li>每首歌放完之后都要重新输入m才可以开始下一首，是否可以自动播放下一首。</li>
+</ol>
+<p>下面一个个解决这些问题：</p>
+<blockquote>
+<ol type="1">
+<li>我不希望我为了这个“播放器”单独开一个终端，每次我要切歌，我还得先切到那个终端</li>
+</ol>
+</blockquote>
+<p>很简单，将afplay的进程改为后台即可，具体做法是加上一个&amp;号，然后你就可以接着在这个终端里干活了。</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">function</span><span class="fu"> m()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb2-2" title="2">    <span class="ex">...</span></a>
+<a class="sourceLine" id="cb2-3" title="3">    <span class="ex">afplay</span> <span class="st">&quot;</span><span class="va">$m_path$song</span><span class="st">&quot;</span> <span class="kw">&amp;</span>                          <span class="co"># &amp; will make the process running background</span></a>
+<a class="sourceLine" id="cb2-4" title="4"><span class="kw">}</span></a></code></pre></div>
+<p>如果需要切歌，可以在终端里输入fg，将后台进程调到前台，然后ctrl+C终止之，但是其实问题并没有得到彻底解决。假如你在终端A中听歌，此时你在终端B中工作并产生了切歌的想法，你在终端B中输入fg，afplay的进程并不会被调到前台，你还是得回到终端A去操作这一切，这并不是我们想要的结果。此时我们可以定义一个新的函数<code>n</code>，这个函数主要就是找出afplay的pid，然后使用kill向它发信号并终止该进程，这里使用INT信号，其效用等同于ctrl+C。</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">function</span><span class="fu"> n()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb3-2" title="2">    <span class="va">pid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb3-3" title="3">    <span class="bu">kill</span> -INT <span class="va">$pid</span></a>
+<a class="sourceLine" id="cb3-4" title="4"><span class="kw">}</span></a></code></pre></div>
+<blockquote>
+<ol start="2" type="1">
+<li>当我连续切歌时，随机性很差，因为文件是按文件名排序的，连续切歌时，时间戳增长不多，往往放来放去都是同一个人的歌，</li>
+</ol>
+</blockquote>
+<p>显然单纯地使用时间戳并不是一个好主意，我们需要别的随机数，Shell其实本身就给我们提供了随机数函数，我们可以通过<code>$((RANDOM))</code>来调用。这里我依然使用了时间戳，我把时间戳和随机数乘起来得到新的随机数再使用，这完全是个人喜好问题，你只用<code>$((RANDOM))</code>也没有关系。这样一来，你在不停切歌的时候，歌曲就不会从随机播放变成了顺序播放了。</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">function</span><span class="fu"> m()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb4-2" title="2">    <span class="ex">...</span></a>
+<a class="sourceLine" id="cb4-3" title="3">    <span class="va">dummy1=$((</span>RANDOM<span class="va">))</span></a>
+<a class="sourceLine" id="cb4-4" title="4">    <span class="va">timestamp=$(</span><span class="fu">date</span> +%s<span class="va">)</span></a>
+<a class="sourceLine" id="cb4-5" title="5">    <span class="va">dummy=$(($dummy1</span>*<span class="va">$timestamp))</span></a>
+<a class="sourceLine" id="cb4-6" title="6">    <span class="va">song_index=$(($dummy</span>%<span class="va">$song_num</span>+1<span class="va">))</span></a>
+<a class="sourceLine" id="cb4-7" title="7">    <span class="ex">...</span></a>
+<a class="sourceLine" id="cb4-8" title="8"><span class="kw">}</span></a></code></pre></div>
+<blockquote>
+<ol start="3" type="1">
+<li>目前的播放器实在太佛系了，只能随机放歌，其实有时候我也会想定向检索一首歌的，</li>
+</ol>
+</blockquote>
+<p>这个也很简单，这个播放器运转的流程是<strong>1.生成随机数–&gt;2.统计目录下歌曲数目–&gt;3.计算歌曲索引值–&gt;4.获取对应歌曲名–&gt;5.播放歌曲</strong>，我们可以在第二步和第四步里加一个过滤器，其实就是一个所有Unix系用户都熟悉的东西，<strong>grep</strong>，具体代码见下：</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb5-1" title="1"><span class="va">BYel=</span><span class="st">&#39;\e[0;33m&#39;</span>;</a>
+<a class="sourceLine" id="cb5-2" title="2"><span class="kw">function</span><span class="fu"> m()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb5-3" title="3">    <span class="va">m_path=</span>~/Music/</a>
+<a class="sourceLine" id="cb5-4" title="4">    <span class="va">keyword=</span><span class="st">&quot;.&quot;</span>                                                     <span class="co"># default: play all the songs</span></a>
+<a class="sourceLine" id="cb5-5" title="5">    <span class="kw">if</span><span class="bu"> [</span> <span class="ot">-n</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span><span class="bu"> ]</span>; <span class="kw">then</span>                                            <span class="co"># play songs by keyword</span></a>
+<a class="sourceLine" id="cb5-6" title="6">        <span class="va">keyword=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb5-7" title="7">    <span class="kw">fi</span></a>
+<a class="sourceLine" id="cb5-8" title="8"></a>
+<a class="sourceLine" id="cb5-9" title="9">    <span class="va">song_num=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">grep</span> -i -e <span class="va">$keyword</span> <span class="kw">|</span> <span class="fu">wc</span> -l<span class="va">)</span><span class="st">&quot;</span>               <span class="co"># Total num of qualified songs</span></a>
+<a class="sourceLine" id="cb5-10" title="10">    <span class="va">dummy1=$((</span>RANDOM<span class="va">))</span></a>
+<a class="sourceLine" id="cb5-11" title="11">    <span class="va">timestamp=$(</span><span class="fu">date</span> +%s<span class="va">)</span></a>
+<a class="sourceLine" id="cb5-12" title="12">    <span class="va">dummy=$(($dummy1</span>*<span class="va">$timestamp))</span></a>
+<a class="sourceLine" id="cb5-13" title="13">    <span class="va">song_index=$(($dummy</span>%<span class="va">$song_num</span>+1<span class="va">))</span>                              <span class="co"># Generate a random song index</span></a>
+<a class="sourceLine" id="cb5-14" title="14"></a>
+<a class="sourceLine" id="cb5-15" title="15">    <span class="va">song=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">grep</span> -i -e <span class="va">$keyword</span> <span class="kw">|</span> <span class="fu">sed</span> -n <span class="st">&quot;</span><span class="va">$song_index</span><span class="st">&quot;</span>p<span class="va">)</span><span class="st">&quot;</span>   <span class="co"># Get the name of the qualified song</span></a>
+<a class="sourceLine" id="cb5-16" title="16">    <span class="bu">echo</span> -e <span class="st">&quot;</span><span class="va">${BYel}$song</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb5-17" title="17">    <span class="ex">afplay</span> <span class="st">&quot;</span><span class="va">$m_path$song</span><span class="st">&quot;</span> <span class="kw">&amp;</span></a>
+<a class="sourceLine" id="cb5-18" title="18"><span class="kw">}</span></a></code></pre></div>
+<p>这样一来，我们就可以使用关键字检索我们要听的歌了，实际上，我们可以看作，每次听歌的时候，该播放器都临时生成了一张歌单，这个歌单是由所有满足你关键字的歌组成的。酷炫的是，由于我们使用了强大的grep，所以输入的关键字可以是充满想象力的正则表达式 ;)</p>
+<blockquote>
+<ol start="4" type="1">
+<li>每首歌放完之后都要重新输入m才可以开始下一首，是否可以自动播放下一首。</li>
+</ol>
+</blockquote>
+<p>这里需要用到while循环和wait，while(1)死循环就是为了一直播放音乐，wait主要是为了等待前面的命令执行完毕，在这里afplay什么时候执行完毕呢，就是一首歌放完的时候，所以正好一首放完就可以开始放下一首了。当然要注意这里不能让afplay后台了，因为这会使wait失效，此处我们令整个函数后台运行。为了保持之前我们只要在命令行里输入一个m就开始放歌的简易方式，我们重命名原函数为<code>music_by_keyword()</code>然后用一个<code>m()</code>函数将这个函数包裹起来，这样一来，它的运行方式就跟之前一样了。</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">function</span><span class="fu"> m()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb6-2" title="2">    <span class="ex">music_by_keyword</span> <span class="va">$1</span> <span class="kw">&amp;</span></a>
+<a class="sourceLine" id="cb6-3" title="3"><span class="kw">}</span></a>
+<a class="sourceLine" id="cb6-4" title="4"></a>
+<a class="sourceLine" id="cb6-5" title="5"><span class="va">BYel=</span><span class="st">&#39;\e[0;33m&#39;</span>;</a>
+<a class="sourceLine" id="cb6-6" title="6"><span class="kw">function</span><span class="fu"> music_by_keyword()</span> <span class="kw">{</span></a>
+<a class="sourceLine" id="cb6-7" title="7">    <span class="va">m_path=</span>~/Music/</a>
+<a class="sourceLine" id="cb6-8" title="8">    <span class="va">keyword=</span><span class="st">&quot;.&quot;</span>                                                         <span class="co"># default: play all the songs</span></a>
+<a class="sourceLine" id="cb6-9" title="9">    <span class="kw">if</span><span class="bu"> [</span> <span class="ot">-n</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span><span class="bu"> ]</span>; <span class="kw">then</span>                                                <span class="co"># play songs by keyword</span></a>
+<a class="sourceLine" id="cb6-10" title="10">        <span class="va">keyword=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb6-11" title="11">    <span class="kw">fi</span></a>
+<a class="sourceLine" id="cb6-12" title="12"></a>
+<a class="sourceLine" id="cb6-13" title="13">    <span class="va">song_num=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">grep</span> -i -e <span class="va">$keyword</span> <span class="kw">|</span> <span class="fu">wc</span> -l<span class="va">)</span><span class="st">&quot;</span>                   <span class="co"># Total num of qualified songs</span></a>
+<a class="sourceLine" id="cb6-14" title="14">    <span class="kw">while</span><span class="bu"> [</span> 1<span class="bu"> ]</span></a>
+<a class="sourceLine" id="cb6-15" title="15">    <span class="kw">do</span></a>
+<a class="sourceLine" id="cb6-16" title="16">        <span class="va">dummy1=$((</span>RANDOM<span class="va">))</span></a>
+<a class="sourceLine" id="cb6-17" title="17">        <span class="va">timestamp=$(</span><span class="fu">date</span> +%s<span class="va">)</span></a>
+<a class="sourceLine" id="cb6-18" title="18">        <span class="va">dummy=$(($dummy1</span>*<span class="va">$timestamp))</span></a>
+<a class="sourceLine" id="cb6-19" title="19">        <span class="va">song_index=$(($dummy</span>%<span class="va">$song_num</span>+1<span class="va">))</span>                              <span class="co"># Generate a random song index</span></a>
+<a class="sourceLine" id="cb6-20" title="20"></a>
+<a class="sourceLine" id="cb6-21" title="21">        <span class="va">song=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="va">$m_path</span> <span class="kw">|</span> <span class="fu">grep</span> -i -e <span class="va">$keyword</span> <span class="kw">|</span> <span class="fu">sed</span> -n <span class="st">&quot;</span><span class="va">$song_index</span><span class="st">&quot;</span>p<span class="va">)</span><span class="st">&quot;</span>   <span class="co"># Get the name of the qualified song</span></a>
+<a class="sourceLine" id="cb6-22" title="22">        <span class="bu">echo</span> -e <span class="st">&quot;</span><span class="va">${BYel}$song</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb6-23" title="23">        <span class="ex">afplay</span> <span class="st">&quot;</span><span class="va">$m_path$song</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb6-24" title="24">        <span class="bu">wait</span></a>
+<a class="sourceLine" id="cb6-25" title="25">    <span class="kw">done</span></a>
+<a class="sourceLine" id="cb6-26" title="26"><span class="kw">}</span></a></code></pre></div>
+<p>最后，我们可以使用kill的信号量拓展一下这个播放器的功能，比如切歌／终止／暂停／继续：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">function</span><span class="fu"> n()</span> <span class="kw">{</span>  <span class="co"># next song</span></a>
+<a class="sourceLine" id="cb7-2" title="2">    <span class="va">pid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-3" title="3">    <span class="bu">kill</span> -INT <span class="va">$pid</span></a>
+<a class="sourceLine" id="cb7-4" title="4"><span class="kw">}</span></a>
+<a class="sourceLine" id="cb7-5" title="5"></a>
+<a class="sourceLine" id="cb7-6" title="6"><span class="kw">function</span><span class="fu"> mm()</span> <span class="kw">{</span> <span class="co"># terminate afplay</span></a>
+<a class="sourceLine" id="cb7-7" title="7">    <span class="va">pid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-8" title="8">    <span class="va">ppid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $3}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-9" title="9">    <span class="bu">kill</span> -INT <span class="va">$ppid</span> <span class="kw">&amp;&amp;</span> <span class="bu">kill</span> -INT <span class="va">$pid</span></a>
+<a class="sourceLine" id="cb7-10" title="10"><span class="kw">}</span></a>
+<a class="sourceLine" id="cb7-11" title="11"></a>
+<a class="sourceLine" id="cb7-12" title="12"><span class="kw">function</span><span class="fu"> ms()</span> <span class="kw">{</span> <span class="co"># music stop</span></a>
+<a class="sourceLine" id="cb7-13" title="13">    <span class="va">ppid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $3}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-14" title="14">    <span class="va">pid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-15" title="15">    <span class="bu">kill</span> -TSTP <span class="va">$pid</span> <span class="kw">&amp;&amp;</span> <span class="bu">kill</span> -TSTP <span class="va">$ppid</span></a>
+<a class="sourceLine" id="cb7-16" title="16"><span class="kw">}</span></a>
+<a class="sourceLine" id="cb7-17" title="17"></a>
+<a class="sourceLine" id="cb7-18" title="18"><span class="kw">function</span><span class="fu"> mc()</span> <span class="kw">{</span> <span class="co"># music continue</span></a>
+<a class="sourceLine" id="cb7-19" title="19">    <span class="va">ppid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $3}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-20" title="20">    <span class="va">pid=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">ps</span> -ef <span class="kw">|</span> <span class="fu">grep</span> afplay <span class="kw">|</span> <span class="fu">grep</span> -v grep <span class="kw">|</span> <span class="fu">head</span> -1 <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span><span class="va">)</span><span class="st">&quot;</span></a>
+<a class="sourceLine" id="cb7-21" title="21">    <span class="bu">kill</span> -CONT <span class="va">$pid</span> <span class="kw">&amp;&amp;</span> <span class="bu">kill</span> -CONT <span class="va">$ppid</span></a>
+<a class="sourceLine" id="cb7-22" title="22"><span class="kw">}</span></a></code></pre></div>
+<h2 id="演示">2. 演示</h2>
+<p><img src="../imgs/terminal_music_demo.png" alt="play_music_in_terminal" style="height: 650px;"/></p>
+<p>(The End)</p>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

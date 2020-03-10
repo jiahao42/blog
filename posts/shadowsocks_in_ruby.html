@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="keywords" content="shadowsocks, socket, GFW, ruby, SOCKS5, shadowsocks原理" />
+  <meta name="last_modified" content="2020-03-06T11:20:43Z" />
+  <meta name="published" content="Mar 21, 2018" />
+  <title>使用Ruby开发Shadowsocks</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">使用Ruby开发Shadowsocks</h1>
+<p class="date">Mar 21, 2018</p>
+</header>
+<p><img src="../imgs/shawshank_the_wall.jpg" alt="shawshank" style="height: 250px;"/></p>
+<blockquote>
+<p>You believe whatever you want Floyd, but I am telling you these walls are funny. First you hate ’em, then you get used to ’em. Enough time passes, gets so you depend on them. That’s institutionalized. They send you here for life, that’s exactly what they take. The part that counts, anyway.</p>
+</blockquote>
+<p>Scope: Shadowsocks的原理, Shadowsocks的简易实现</p>
+<hr />
+<ul>
+<li><ol start="0" type="1">
+<li><a href="#nonsense">废话</a></li>
+</ol></li>
+<li><ol type="1">
+<li><a href="#How">原理</a></li>
+</ol></li>
+<li><ol start="2" type="1">
+<li><a href="#implement">简易实现</a></li>
+</ol>
+<ul>
+<li>2.1 <a href="#socks">SOCKS客户端与服务器的连接</a></li>
+<li>2.2 <a href="#local_server">ss_local与ss_server之间的通信</a></li>
+<li>2.3 <a href="#running">ss的调试及运行</a></li>
+<li>2.4 <a href="#multi_thread">多线程</a></li>
+<li>2.5 <a href="#cryptography">加密相关</a> // TODO</li>
+<li>2.6 <a href="#optimization">优化</a> // TODO</li>
+</ul></li>
+</ul>
+<p><a name="nonsense"></a></p>
+<h2 id="废话">0. 废话</h2>
+<p>眼看本科生涯就要结束了，觉得自己还有很多想做的事都没有做，其中两件就是学一下Ruby和写一个代理。个人认为学会了Python和Racket之后，再学Ruby在语言层面上并不会有什么太大的收获，不过bonus就是可以顺便学学Ruby on Rails，一个非常不错的Web框架。我想学Ruby纯粹是因为Ruby的名字好听加上logo好看，再加上看了官方的教程<a href="https://www.ruby-lang.org/en/documentation/quickstart/">Ruby in Twenty Minutes</a>之后，觉得Ruby颇有些loosely-knit的味道，适合写代码时放飞自我。对于墙的问题，我就不想再对此评论什么了，作为一个独立的个体，我会贡献出我的价值，以此来表达我的观点。希望6月回国之后可以用上自己写的代理 :)</p>
+<p><a name="How"></a></p>
+<h2 id="原理">1. 原理</h2>
+<p><a href="https://zh.wikipedia.org/wiki/%E9%98%B2%E7%81%AB%E9%95%BF%E5%9F%8E">GFW</a>的主要手段有DNS污染和TCP协议关键字审查，Shadowsocks的应对方式也很简单，找一台不受GFW所限制的机器作为中介。主要流程如下：</p>
+<ul>
+<li><ol type="1">
+<li>ss本地客户端会将网络请求加密后转发到中介机器</li>
+</ol></li>
+<li><ol start="2" type="1">
+<li>中介机器解密请求并向真正的目标服务器发起请求</li>
+</ol></li>
+<li><ol start="3" type="1">
+<li>中介机器获得数据后又将数据加密并发回ss本地客户端</li>
+</ol></li>
+<li><ol start="4" type="1">
+<li>ss本地客户端对数据进行解密</li>
+</ol></li>
+</ul>
+<figure>
+<img src="../imgs/ss_arch.dot.png" alt="shadowsocks_architecture" /><figcaption>shadowsocks_architecture</figcaption>
+</figure>
+<p>对于DNS污染，中介机器在墙外，不受墙内的DNS污染影响；对于TCP协议关键字审查，ss_local与ss_server之间的流量是加密的，所以墙也无法审查。当然这两个都是老手段了，墙还有很多其他的招式，比如开某会期间，直接实行封端口的策略，导致一时间好多人将443端口作为ss_server的端口来使用。封端口策略是一种非常愚蠢又极端的手段，设想所有服务器只被允许开放特定端口，那么服务器的服务就只能被部署在这几个特定端口上，这下好了，黑客想拿你的站直接连扫端口这一步也省了 :）</p>
+<p><a name="implement"></a></p>
+<h2 id="简易实现">2. 简易实现</h2>
+<p>本实现使用以下配置：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode json"><code class="sourceCode json"><a class="sourceLine" id="cb1-1" title="1"><span class="fu">{</span></a>
+<a class="sourceLine" id="cb1-2" title="2">  <span class="dt">&quot;server&quot;</span><span class="fu">:</span> <span class="st">&quot;127.0.0.1&quot;</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb1-3" title="3">  <span class="dt">&quot;server_port&quot;</span><span class="fu">:</span> <span class="dv">5246</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb1-4" title="4">  <span class="dt">&quot;local_port&quot;</span><span class="fu">:</span> <span class="dv">1080</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb1-5" title="5">  <span class="dt">&quot;encrypt-method&quot;</span><span class="fu">:</span> <span class="st">&quot;aes-256-gcm&quot;</span></a>
+<a class="sourceLine" id="cb1-6" title="6"><span class="fu">}</span></a></code></pre></div>
+<p><a name="socks"></a></p>
+<h3 id="socks客户端与服务器的连接">2.1 SOCKS客户端与服务器的连接</h3>
+<p>Shadowsocks使用的是SOCKS5代理协议，其具体细节在<a href="https://tools.ietf.org/html/rfc1928">RFC1928</a>中被定义。SOCKS5协议中的client可以看作是计算机发出的网络请求，server就是ss_local。二者之间首先要进行握手以及认证，从而建立连接，具体过程如下图所示：</p>
+<p><img src="../imgs/ss_socks5.dot.png" alt="shadowsocks_socks5_details" style="height: 500px;"/></p>
+<p>上图中的stage_0 - stage_2属于建立SOCKS5握手阶段，此时计算机会默认向1080端口发出请求“\x05\x01\x00”进行SOCKS5连接的消息，该消息由三部分组成：</p>
+<ul>
+<li>“\x05”: SOCKS5版本 = 0x05，占1字节</li>
+<li>“\x01”: Method identifier的数量(0x01 - 0xff)，此处\x01说明该客户端只支持一种连接方式，占1字节</li>
+<li>“\x00”: Method identifiers，此处\x00就是该客户端只支持的这一种方式的identifier，即无需认证的连接方式。此处每个Method identifier占一字节，最多占0xff字节</li>
+</ul>
+<p>监听在1080端口的ss_local，即SOCKS5服务器收到该消息后会回复“\x05\x00”，该消息由两部分组成：</p>
+<ul>
+<li>“\x05”: SOCKS5版本 = 0x05，占1字节</li>
+<li>“\x00”: Method identifier，此处表示选择identifier为\x00的方式，即无需认证的连接方式，占1字节</li>
+</ul>
+<p>具体代码如下：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb2-1" title="1"><span class="kw">class</span> <span class="dt">Local</span></a>
+<a class="sourceLine" id="cb2-2" title="2">  <span class="kw">def</span> initialize()</a>
+<a class="sourceLine" id="cb2-3" title="3">    <span class="ot">@utils</span> = <span class="dt">Utils</span>.new</a>
+<a class="sourceLine" id="cb2-4" title="4">    <span class="ot">@config</span> = <span class="ot">@utils</span>.config</a>
+<a class="sourceLine" id="cb2-5" title="5">    <span class="ot">@local_port</span> = <span class="ot">@config</span>[<span class="st">&#39;local_port&#39;</span>]</a>
+<a class="sourceLine" id="cb2-6" title="6">    <span class="ot">@local</span> = <span class="dt">TCPServer</span>.new(<span class="ot">@local_port</span>)    <span class="co"># Listen</span></a>
+<a class="sourceLine" id="cb2-7" title="7">    ...</a>
+<a class="sourceLine" id="cb2-8" title="8">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb2-9" title="9">  <span class="kw">def</span> run()</a>
+<a class="sourceLine" id="cb2-10" title="10">    loop {                           <span class="co"># Servers run forever</span></a>
+<a class="sourceLine" id="cb2-11" title="11">      <span class="ot">@client</span> = <span class="ot">@local</span>.accept</a>
+<a class="sourceLine" id="cb2-12" title="12">      <span class="co"># Receive</span></a>
+<a class="sourceLine" id="cb2-13" title="13">      <span class="co"># +----+----------+----------+</span></a>
+<a class="sourceLine" id="cb2-14" title="14">      <span class="co"># |VER | NMETHODS | METHODS  |</span></a>
+<a class="sourceLine" id="cb2-15" title="15">      <span class="co"># +----+----------+----------+</span></a>
+<a class="sourceLine" id="cb2-16" title="16">      <span class="co"># | 1  |    1     | 1 to 255 |</span></a>
+<a class="sourceLine" id="cb2-17" title="17">      <span class="co"># +----+----------+----------+</span></a>
+<a class="sourceLine" id="cb2-18" title="18">      ver = <span class="ot">@client</span>.read(<span class="dv">1</span>) <span class="co"># VER</span></a>
+<a class="sourceLine" id="cb2-19" title="19">      <span class="kw">if</span> ver != <span class="st">&quot;\x05&quot;</span></a>
+<a class="sourceLine" id="cb2-20" title="20">        <span class="ot">@client</span>.close</a>
+<a class="sourceLine" id="cb2-21" title="21">      <span class="kw">end</span></a>
+<a class="sourceLine" id="cb2-22" title="22">      n_methods = <span class="ot">@client</span>.read(<span class="dv">1</span>) <span class="co"># NMETHODS</span></a>
+<a class="sourceLine" id="cb2-23" title="23">      methods = <span class="ot">@client</span>.read(n_methods.ord) <span class="co"># METHODS</span></a>
+<a class="sourceLine" id="cb2-24" title="24">      <span class="co"># Send</span></a>
+<a class="sourceLine" id="cb2-25" title="25">      <span class="co"># +----+--------+</span></a>
+<a class="sourceLine" id="cb2-26" title="26">      <span class="co"># |VER | METHOD |</span></a>
+<a class="sourceLine" id="cb2-27" title="27">      <span class="co"># +----+--------+</span></a>
+<a class="sourceLine" id="cb2-28" title="28">      <span class="co"># | 1  |   1    |</span></a>
+<a class="sourceLine" id="cb2-29" title="29">      <span class="co"># +----+--------+</span></a>
+<a class="sourceLine" id="cb2-30" title="30">      data = <span class="st">&quot;\x05\x00&quot;</span></a>
+<a class="sourceLine" id="cb2-31" title="31">      <span class="ot">@client</span>.write data</a>
+<a class="sourceLine" id="cb2-32" title="32">      ...</a>
+<a class="sourceLine" id="cb2-33" title="33">    }</a></code></pre></div>
+<p>握手阶段结束后是stage_2 - stage_4，此时计算机会向1080端口发出请求细节，此处我们使用“\x05\x01\x00\x03\x0e + b’www.google.com’ + \x01\xbb”，该请求由以下几部分组成：</p>
+<ul>
+<li>“\x05”: SOCKS5版本 = 0x05，占1字节</li>
+<li>“\x01”: 该请求希望执行的命令，\x01代表Connect，占1字节</li>
+<li>“\x00”: Reserved，占1字节</li>
+<li>“\x03”: Address type，地址类型，共有三种，此处\x03代表域名，占1字节</li>
+<li>“\x0e”: 域名长度，此处域名www.google.com的长度为\x0e，占1字节</li>
+<li>“b’www.google.com’”: 需要访问的域名，域名的长度由前一字节指定，最多占0xff字节
+<ul>
+<li>注：此处可以看出域名的长度的限制，其长度不能超过0xff个字符，这一点可以在Wikipedia上求证，[<a href="https://zh.wikipedia.org/wiki/%E5%9F%9F%E5%90%8D%E7%B3%BB%E7%BB%9F">当前，对于每一级域名长度的限制是63个字符，域名总长度则不能超过253个字符。]</a></li>
+</ul></li>
+<li>“\x01\xbb”: 需要访问的端口，Google使用的是https，故使用443端口，占2字节</li>
+</ul>
+<p>监听在1080端口的ss_local，即SOCKS5服务器收到该消息后需要做两件事：<br />
+1. 将需要访问的地址与端口加密后发送到ss_server<br />
+2. 回复“\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00”到计算机，该消息由以下几部分组成：</p>
+<ul>
+<li>“\x05”: SOCKS5版本 = 0x05，占1字节</li>
+<li>“\x00”: Reply，此处\x00代表success，占1字节</li>
+<li>“\x00”: Reserved，占1字节</li>
+<li>“\x01”: Address type，地址类型，共有三种，此处\x01代表ipv4地址，占1字节</li>
+<li>“\x00\x00\x00\x00”: server bound address，该地址只用在服务器主动对客户端发起连接的情况下，如FTP，此处并不适用，直接使用0x00填充，占4字节</li>
+<li>“\x00\x00”: server bound port，此处并不适用，使用0x00填充，占2字节</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb3-1" title="1"><span class="kw">class</span> <span class="dt">Local</span></a>
+<a class="sourceLine" id="cb3-2" title="2">  <span class="kw">def</span> initialize()</a>
+<a class="sourceLine" id="cb3-3" title="3">    ...</a>
+<a class="sourceLine" id="cb3-4" title="4">    <span class="ot">@utils</span>.init_cipher(<span class="ot">@config</span>[<span class="st">&#39;encrypt-method&#39;</span>])</a>
+<a class="sourceLine" id="cb3-5" title="5">    <span class="ot">@server_addr</span> = <span class="ot">@config</span>[<span class="st">&#39;server&#39;</span>]</a>
+<a class="sourceLine" id="cb3-6" title="6">    <span class="ot">@server_port</span> = <span class="ot">@config</span>[<span class="st">&#39;server_port&#39;</span>]</a>
+<a class="sourceLine" id="cb3-7" title="7">    <span class="ot">@server</span> = <span class="dt">TCPSocket</span>.open(<span class="ot">@server_addr</span>, <span class="ot">@server_port</span>)</a>
+<a class="sourceLine" id="cb3-8" title="8">    ...</a>
+<a class="sourceLine" id="cb3-9" title="9">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb3-10" title="10">  <span class="kw">def</span> run()</a>
+<a class="sourceLine" id="cb3-11" title="11">    loop {</a>
+<a class="sourceLine" id="cb3-12" title="12">      ...</a>
+<a class="sourceLine" id="cb3-13" title="13">      <span class="co"># Receive</span></a>
+<a class="sourceLine" id="cb3-14" title="14">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-15" title="15">      <span class="co"># |VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |</span></a>
+<a class="sourceLine" id="cb3-16" title="16">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-17" title="17">      <span class="co"># | 1  |  1  | X&#39;00&#39; |  1   | Variable |    2     |</span></a>
+<a class="sourceLine" id="cb3-18" title="18">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-19" title="19">      ver = <span class="ot">@client</span>.read(<span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-20" title="20">      <span class="kw">if</span> ver != <span class="st">&quot;\x05&quot;</span></a>
+<a class="sourceLine" id="cb3-21" title="21">        <span class="ot">@client</span>.close</a>
+<a class="sourceLine" id="cb3-22" title="22">      <span class="kw">end</span></a>
+<a class="sourceLine" id="cb3-23" title="23">      <span class="co"># o  CMD</span></a>
+<a class="sourceLine" id="cb3-24" title="24">      <span class="co"># o  CONNECT X&#39;01&#39;</span></a>
+<a class="sourceLine" id="cb3-25" title="25">      <span class="co"># o  BIND X&#39;02&#39;</span></a>
+<a class="sourceLine" id="cb3-26" title="26">      <span class="co"># o  UDP ASSOCIATE X&#39;03&#39;</span></a>
+<a class="sourceLine" id="cb3-27" title="27">      cmd = <span class="ot">@client</span>.read(<span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-28" title="28">      rsv = <span class="ot">@client</span>.read(<span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-29" title="29">      <span class="co"># o  ATYP   address type of following address</span></a>
+<a class="sourceLine" id="cb3-30" title="30">      <span class="co"># o  IP V4 address: X&#39;01&#39; - 4 bytes</span></a>
+<a class="sourceLine" id="cb3-31" title="31">      <span class="co"># o  DOMAINNAME: X&#39;03&#39; - the first byte stands for length</span></a>
+<a class="sourceLine" id="cb3-32" title="32">      <span class="co"># o  IP V6 address: X&#39;04&#39; - 16 bytes</span></a>
+<a class="sourceLine" id="cb3-33" title="33">      atyp = <span class="ot">@client</span>.read(<span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-34" title="34">      msg = atyp</a>
+<a class="sourceLine" id="cb3-35" title="35">      <span class="kw">if</span> atyp == <span class="st">&quot;\x01&quot;</span></a>
+<a class="sourceLine" id="cb3-36" title="36">        dst_addr = <span class="ot">@client</span>.read(<span class="dv">4</span>)</a>
+<a class="sourceLine" id="cb3-37" title="37">        msg += dst_addr</a>
+<a class="sourceLine" id="cb3-38" title="38">      <span class="kw">elsif</span> atyp == <span class="st">&quot;\x03&quot;</span></a>
+<a class="sourceLine" id="cb3-39" title="39">        len = <span class="ot">@client</span>.read(<span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb3-40" title="40">        dst_addr = <span class="ot">@client</span>.read(len.ord)</a>
+<a class="sourceLine" id="cb3-41" title="41">        msg += len + dst_addr</a>
+<a class="sourceLine" id="cb3-42" title="42">      <span class="kw">elsif</span> atyp == <span class="st">&quot;\x04&quot;</span></a>
+<a class="sourceLine" id="cb3-43" title="43">        dst_addr = <span class="ot">@client</span>.read(<span class="dv">16</span>)</a>
+<a class="sourceLine" id="cb3-44" title="44">        msg += dst_addr</a>
+<a class="sourceLine" id="cb3-45" title="45">      <span class="kw">end</span></a>
+<a class="sourceLine" id="cb3-46" title="46">      dst_port = <span class="ot">@client</span>.read(<span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb3-47" title="47">      msg += dst_port</a>
+<a class="sourceLine" id="cb3-48" title="48">      <span class="ot">@server</span>.write <span class="ot">@utils</span>.encrypt(msg)</a>
+<a class="sourceLine" id="cb3-49" title="49">      <span class="co"># Send</span></a>
+<a class="sourceLine" id="cb3-50" title="50">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-51" title="51">      <span class="co"># |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |</span></a>
+<a class="sourceLine" id="cb3-52" title="52">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-53" title="53">      <span class="co"># | 1  |  1  | X&#39;00&#39; |  1   | Variable |    2     |</span></a>
+<a class="sourceLine" id="cb3-54" title="54">      <span class="co"># +----+-----+-------+------+----------+----------+</span></a>
+<a class="sourceLine" id="cb3-55" title="55">      data = <span class="st">&quot;\x05&quot;</span> + <span class="st">&quot;\x00&quot;</span> + <span class="st">&quot;\x00&quot;</span> + <span class="st">&quot;\x01&quot;</span> + <span class="st">&quot;\x00\x00\x00\x00&quot;</span> + <span class="st">&quot;\x00\x00&quot;</span></a>
+<a class="sourceLine" id="cb3-56" title="56">      <span class="ot">@client</span>.write data</a>
+<a class="sourceLine" id="cb3-57" title="57">      ...</a>
+<a class="sourceLine" id="cb3-58" title="58">    }</a></code></pre></div>
+<p>至此，SOCKS5连接已经建立完毕。</p>
+<p><a name="local_server"></a></p>
+<h3 id="ss_local与ss_server之间的通信">2.2 ss_local与ss_server之间的通信</h3>
+<p>SOCKS5连接建立完毕之后，剩下的就只有ss_local与ss_server之间的TCP转发及加解密问题了。</p>
+<p>ss_local连接ss_server的过程非常简单：从config.json里读出server的地址及端口，直接一个TCP连接连过去就ok了。</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb4-1" title="1"><span class="kw">class</span> <span class="dt">Local</span></a>
+<a class="sourceLine" id="cb4-2" title="2">  <span class="kw">def</span> initialize()</a>
+<a class="sourceLine" id="cb4-3" title="3">    <span class="ot">@server_addr</span> = <span class="ot">@config</span>[<span class="st">&#39;server&#39;</span>]</a>
+<a class="sourceLine" id="cb4-4" title="4">    <span class="ot">@server_port</span> = <span class="ot">@config</span>[<span class="st">&#39;server_port&#39;</span>]</a>
+<a class="sourceLine" id="cb4-5" title="5">    <span class="ot">@server</span> = <span class="dt">TCPSocket</span>.open(<span class="ot">@server_addr</span>, <span class="ot">@server_port</span>)</a>
+<a class="sourceLine" id="cb4-6" title="6">    ...</a>
+<a class="sourceLine" id="cb4-7" title="7">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb4-8" title="8">  <span class="kw">def</span> run()</a>
+<a class="sourceLine" id="cb4-9" title="9">    loop {</a>
+<a class="sourceLine" id="cb4-10" title="10">      ...</a>
+<a class="sourceLine" id="cb4-11" title="11">      handle_tcp(<span class="ot">@client</span>, <span class="ot">@server</span>)</a>
+<a class="sourceLine" id="cb4-12" title="12">    }</a>
+<a class="sourceLine" id="cb4-13" title="13">  ...</a>
+<a class="sourceLine" id="cb4-14" title="14"><span class="kw">end</span></a></code></pre></div>
+<p>之前说到过ss_local<strong>将需要访问的地址与端口加密后发送到ss_server</strong>，同样的，ss_server收到地址和域名后，直接一个TCP连接连过去。</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">class</span> <span class="dt">Server</span></a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="kw">def</span> run()</a>
+<a class="sourceLine" id="cb5-3" title="3">    ...</a>
+<a class="sourceLine" id="cb5-4" title="4">    <span class="ot">@remote</span> = <span class="dt">TCPSocket</span>.open(target_addr, target_port)</a>
+<a class="sourceLine" id="cb5-5" title="5">    handle_tcp(<span class="ot">@client</span>, <span class="ot">@server</span>)</a>
+<a class="sourceLine" id="cb5-6" title="6">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb5-7" title="7"><span class="kw">end</span></a></code></pre></div>
+<p>至此client、ss_local、ss_server三者已经连接在了一起。目前的问题在于，ss_local如何将收到的requests转发给ss_server？ss_server又如何将收到的responses转发给ss_local？我们只要实现一个TCP转发函数<code>handle_tcp(source, destination)</code>即可。注意ss_local与ss_server的<code>handle_tcp</code>函数的实现都是相同的，因为它们需要做的事情是一样的，即将收到的TCP数据转发到另一端。该函数的核心在于判断何时该从socket中读数据，何时从socket中写数据，这个任务可以通过调用<a href="http://ruby-doc.org/core-2.0.0/IO.html#method-c-select">select函数</a>来完成，select函数会返回ready for reading/writing的sockets。如果某一socket is ready for reading了，那就读取这个socket中的数据并写入到另一个socket中，这样一来就实现了TCP的转发。当然，在读／写的时候，不能忘记对流量进行解密／加密，否则会被墙检查到流量中的关键字，轻则重置连接，重则封锁墙外服务器的ip。</p>
+<blockquote>
+<p>select(read_array [, write_array [, error_array [, timeout]]]) → array or nil<br />
+Calls select(2) system call. It monitors given arrays of IO objects, waits one or more of IO objects ready for reading, are ready for writing, and have pending exceptions respectably, and returns an array that contains arrays of those IO objects. It will return nil if optional timeout value is given and no IO object is ready in timeout seconds.</p>
+</blockquote>
+<div class="sourceCode" id="cb6"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb6-1" title="1"><span class="dt">$blockSize</span> = <span class="dv">1024</span> * <span class="dv">100</span></a>
+<a class="sourceLine" id="cb6-2" title="2"><span class="kw">def</span> handle_tcp(src, dest)</a>
+<a class="sourceLine" id="cb6-3" title="3">  loop {</a>
+<a class="sourceLine" id="cb6-4" title="4">    ready = select([src, dest], <span class="dv">nil</span>, <span class="dv">nil</span>)</a>
+<a class="sourceLine" id="cb6-5" title="5">    puts ready[<span class="dv">0</span>]</a>
+<a class="sourceLine" id="cb6-6" title="6">    <span class="kw">if</span> ready[<span class="dv">0</span>].include? src</a>
+<a class="sourceLine" id="cb6-7" title="7">        <span class="co"># src -&gt; dest</span></a>
+<a class="sourceLine" id="cb6-8" title="8">        data = src.recv(<span class="dt">$blockSize</span>)</a>
+<a class="sourceLine" id="cb6-9" title="9">        <span class="kw">if</span> data.empty?</a>
+<a class="sourceLine" id="cb6-10" title="10">            puts <span class="st">&quot;src end closed connection&quot;</span></a>
+<a class="sourceLine" id="cb6-11" title="11">            <span class="kw">break</span></a>
+<a class="sourceLine" id="cb6-12" title="12">        <span class="kw">end</span></a>
+<a class="sourceLine" id="cb6-13" title="13">        data = <span class="ot">@utils</span>.encrypt(data)</a>
+<a class="sourceLine" id="cb6-14" title="14">        dest.write(data)</a>
+<a class="sourceLine" id="cb6-15" title="15">    <span class="kw">end</span></a>
+<a class="sourceLine" id="cb6-16" title="16">    <span class="kw">if</span> ready[<span class="dv">0</span>].include? dest</a>
+<a class="sourceLine" id="cb6-17" title="17">        <span class="co"># dest -&gt; src</span></a>
+<a class="sourceLine" id="cb6-18" title="18">        data = dest.recv(<span class="dt">$blockSize</span>)</a>
+<a class="sourceLine" id="cb6-19" title="19">        <span class="kw">if</span> data.empty?</a>
+<a class="sourceLine" id="cb6-20" title="20">            puts <span class="st">&quot;dest end closed connection&quot;</span></a>
+<a class="sourceLine" id="cb6-21" title="21">            <span class="kw">break</span></a>
+<a class="sourceLine" id="cb6-22" title="22">        <span class="kw">end</span></a>
+<a class="sourceLine" id="cb6-23" title="23">        data = <span class="ot">@utils</span>.decrypt(data)</a>
+<a class="sourceLine" id="cb6-24" title="24">        src.write(data)</a>
+<a class="sourceLine" id="cb6-25" title="25">    <span class="kw">end</span></a>
+<a class="sourceLine" id="cb6-26" title="26">  }</a>
+<a class="sourceLine" id="cb6-27" title="27"><span class="kw">end</span></a></code></pre></div>
+<p><a name="running"></a></p>
+<h3 id="ss的调试及运行">2.3 ss的调试及运行</h3>
+<p>在调试程序的过程中，需要一个SOCKS5客户端，我们可以自己写一个客户端，向ss_local端口（1080）发送指定消息，也可以将本机的代理设置为SOCKS5。macOS下可以进入<br />
+<strong>System Preference -&gt; Network -&gt; Advanced -&gt; Proxies -&gt; SOCKS Proxy</strong>进行相应更改。</p>
+<p><img src="../imgs/macOS_socks5.png" alt="macos socks5" style="height: 400px;"/></p>
+<p>调试完成之后，就可以投入使用了。在本机上运行local.rb，并将server.rb放到墙外的服务器上运行，打开本机的SOCKS代理就可以使用浏览器访问不存在的网站了，也可以使用命令行进行测试<br />
+<code>curl --socks5-hostname 127.0.0.1:1080 https://google.com/</code><br />
+记得把config.json中的ip地址改为墙外服务器的地址并确保端口信息正确，good luck!</p>
+<p><a name="multi_thread"></a></p>
+<h3 id="多线程">2.4 多线程</h3>
+<p>用单线程的版本的Shadowsocks访问Twitter，却发现所有图片都无法加载…</p>
+<p><img src="../imgs/single_thread_twitter.png" alt="single_thread_twitter" style="height: 500px;"/></p>
+<h4 id="为何需要多线程">2.4.1 为何需要多线程</h4>
+<p>client、ss_local、ss_server三者是通过socket来通信的，而socket往往由一个三元组来表示<strong>[协议，地址，端口]</strong>。显然，一个线程一次只能访问一个socket，一个socket只能表示一个三元组，而大多数网站资源的来源都不止一个（如网站会使用CDN加速），所以单线程的ss就只能获取到网站的部分资源。这也是上图中Twitter图片无法加载的原因：Twitter的文字来自twitter.com，而图片却来自pbs.twimg.com，ss唯一的线程一直在访问twitter.com，当然就无法获取图片资源了。单线程还会导致软件效率低下，因为CPU资源会被缓慢的网络传输及I/O所浪费。</p>
+<h4 id="改写为多线程">2.4.2 改写为多线程</h4>
+<p>多线程的改写在Ruby中较为简单，直接用<code>Thread.new</code>或者<code>Thread.start</code>创建线程即可，当CPU空闲时改线程会自动运行，无需手动启动线程。新建线程时会用到有趣的Ruby block，要运行的线程代码会被作为block传给线程。</p>
+<p>ss_local可改为：</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">class</span> <span class="dt">Local</span></a>
+<a class="sourceLine" id="cb7-2" title="2">  <span class="kw">def</span> initialize()</a>
+<a class="sourceLine" id="cb7-3" title="3">    ...</a>
+<a class="sourceLine" id="cb7-4" title="4">    <span class="ot">@port</span> = <span class="ot">@config</span>[<span class="st">&#39;local_port&#39;</span>]</a>
+<a class="sourceLine" id="cb7-5" title="5">    <span class="ot">@local</span> = <span class="dt">TCPServer</span>.new(<span class="ot">@port</span>)    <span class="co"># Listen</span></a>
+<a class="sourceLine" id="cb7-6" title="6">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb7-7" title="7"></a>
+<a class="sourceLine" id="cb7-8" title="8">  <span class="kw">def</span> run()</a>
+<a class="sourceLine" id="cb7-9" title="9">    loop {</a>
+<a class="sourceLine" id="cb7-10" title="10">      <span class="dt">Thread</span>.start (<span class="ot">@local</span>.accept) {|client| thread_run(client)} <span class="co"># Ruby block</span></a>
+<a class="sourceLine" id="cb7-11" title="11">    }</a>
+<a class="sourceLine" id="cb7-12" title="12">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb7-13" title="13"></a>
+<a class="sourceLine" id="cb7-14" title="14">  <span class="kw">def</span> thread_run(client)</a>
+<a class="sourceLine" id="cb7-15" title="15">    <span class="co"># SOCKS5 handshake</span></a>
+<a class="sourceLine" id="cb7-16" title="16">    <span class="co"># SOCKS5 request/reply</span></a>
+<a class="sourceLine" id="cb7-17" title="17">    handle_tcp(client, server)</a>
+<a class="sourceLine" id="cb7-18" title="18">    <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb7-19" title="19">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb7-20" title="20">  ...</a>
+<a class="sourceLine" id="cb7-21" title="21"><span class="kw">end</span></a></code></pre></div>
+<p>类似的，ss_server可改为：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode ruby"><code class="sourceCode ruby"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">class</span> <span class="dt">Server</span></a>
+<a class="sourceLine" id="cb8-2" title="2">  <span class="kw">def</span> initialize()</a>
+<a class="sourceLine" id="cb8-3" title="3">    ...</a>
+<a class="sourceLine" id="cb8-4" title="4">    <span class="ot">@server_port</span> = <span class="ot">@config</span>[<span class="st">&#39;server_port&#39;</span>]</a>
+<a class="sourceLine" id="cb8-5" title="5">    <span class="ot">@server</span> = <span class="dt">TCPServer</span>.new(<span class="ot">@server_port</span>)</a>
+<a class="sourceLine" id="cb8-6" title="6">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb8-7" title="7">  </a>
+<a class="sourceLine" id="cb8-8" title="8">  <span class="kw">def</span> run() </a>
+<a class="sourceLine" id="cb8-9" title="9">    loop {</a>
+<a class="sourceLine" id="cb8-10" title="10">      <span class="dt">Thread</span>.start (<span class="ot">@server</span>.accept) {|local| thread_run(local)} <span class="co"># Ruby block</span></a>
+<a class="sourceLine" id="cb8-11" title="11">    }</a>
+<a class="sourceLine" id="cb8-12" title="12">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb8-13" title="13"></a>
+<a class="sourceLine" id="cb8-14" title="14">  <span class="kw">def</span> thread_run(client)</a>
+<a class="sourceLine" id="cb8-15" title="15">    ...</a>
+<a class="sourceLine" id="cb8-16" title="16">    remote = <span class="dt">TCPSocket</span>.open(target_addr, target_port)</a>
+<a class="sourceLine" id="cb8-17" title="17">    handle_tcp(local, remote)</a>
+<a class="sourceLine" id="cb8-18" title="18">    <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb8-19" title="19">  <span class="kw">end</span></a>
+<a class="sourceLine" id="cb8-20" title="20">  ...</a>
+<a class="sourceLine" id="cb8-21" title="21"><span class="kw">end</span></a></code></pre></div>
+<p><a name="cryptography"></a></p>
+<h3 id="加密相关">2.5 加密相关</h3>
+<p>// TODO</p>
+<p><a name="optimization"></a></p>
+<h3 id="优化">2.6 优化</h3>
+<p>// TODO</p>
+<hr />
+<p>本文源代码可在<a href="https://github.com/jiahao42/Shadowsocks-in-Ruby">此处</a>下载</p>
+<p><img src="../imgs/shawshank_italian.jpg" alt="shawshank italian" style="height: 250px;"/></p>
+<blockquote>
+<p>I have no idea to this day what those two Italian ladies were singing about. Truth is, I don’t want to know. Some things are better left unsaid. I’d like to think they were singing about something so beautiful, it can’t expressed in words, and it makes your heart ache because of it. I tell you, those voices soared higher and farther than anybody in a grey place dares to dream. It was as if some beautiful bird had flapped into our drab little cage and made these walls dissolve away, and for the briefest of moments, every last man in Shawshank felt free.</p>
+</blockquote>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>

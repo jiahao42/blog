@@ -1,0 +1,17 @@
+digraph code_with_taste_explanation {
+  labelloc="t"
+  label = "How it works"
+  // node [shape=record];
+  graph [rankdir=LR, fontsize=25, nodesep="1"];
+
+  indirect -> head [shape = circle]
+  head -> node0 [shape = circle]
+  node0 [shape=record, label="{ val | next }"]
+  node1 [shape=record, label="{ val | next }"]
+  node2 [shape=record, label="{ val | next }"]
+  node3 [shape=record, label="{ val | next }"]
+  null [shape=rectangle, label="NULL"]
+  node0 -> node1 -> node2 -> node3 -> null
+  {rank = same; indirect head}
+
+}

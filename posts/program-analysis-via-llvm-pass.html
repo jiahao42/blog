@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh" xml:lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="last_modified" content="2020-03-06T11:20:43Z" />
+  <meta name="published" content="Feb 23, 2020" />
+  <title>LLVM Pass与程序分析</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/syntax-highlighting.css" />
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon"/> <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+  <meta name="author" content="Jiahao Cai">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
+  <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());
+  gtag('config', 'UA-116308654-1'); </script>
+</head>
+<body>
+<a id="return" href="/"> <img src="/static/logo.png" style="width:25%;float:right"> </a>
+<header id="title-block-header">
+<h1 class="title">LLVM Pass与程序分析</h1>
+<p class="date">Feb 23, 2020</p>
+</header>
+<p><em>注：本文所用LLVM版本为3.8</em></p>
+<h2 id="overview">0. Overview</h2>
+<p>根据官方介绍，<a href="http://llvm.org/">LLVM</a> 是一堆模块化的，可复用的编译器以及工具链。LLVM Pass是其中非常重要的一部分，它可以让你对程序进行编译器级别的修改，但是又不需要你真的实现一个编译器。所谓编译器级别的修改——如果你对编译器有所了解的话，就知道编译器首先会通过lexical/syntax analysis将源代码解析成AST（abstract syntax tree，即语法树)，然后对AST进行semantic analysis以及各种各样的optimization，最后生成目标代码。在对AST进行分析的过程中，编译器会对AST进行一次或多次，局部或全局的分析，这些分析被模块化了之后，每个分析往往只负责一个相对独立的功能，这些分析也被称作Compiler Pass。LLVM会将源代码统一表示成LLVM自己定义的IR（intermediate representation，即中间表示），并基于IR生成AST，然后再将AST交给用户，让用户根据自己的需求去写Pass对程序进行分析。</p>
+<p>这篇文章主要是关于用LLVM Pass来实现简化版taint analysis（污点分析）的核心部分。</p>
+<h2 id="taint-analysis">1. Taint analysis</h2>
+<p>Taint analysis可以被看作是信息流分析（Information Flow Analysis）的一种，主要是追踪数据在程序中的走向。具体实现的话，用static analysis（静态分析）或者dynamic analysis（动态分析）都可以。这里主要是用static analysis。我们要实现的简化版taint analysis，目标是找到程序中所有有可能被攻击者控制的变量。下面我尝试简洁地说明什么是taint analysis。</p>
+<h4 id="几个问题">1.1 几个问题</h4>
+<ul>
+<li>为什么要追踪数据在程序中的走向？
+<ul>
+<li>这里主要是为了最大程度地识别潜在的恶意输入，从而提高程序的安全性。在现实世界中，攻击者的payload是多种多样的，我们往往无法预知攻击者的payload会以何种形式呈现（无法从形式上防范），但是我们知道许多payload都有一些共同的特征，比如说很多payload经过复杂的转换，最终会作为参数传入<code>system</code>函数，并执行恶意指令。通过追踪这些数据的走向，我们可以识别用户的输入是否具有这些特征。换句话说，在程序分析中，用户的原始输入长什么样并不重要，我们在意的是这段输入对于程序运行状态的影响。</li>
+</ul></li>
+<li>哪些数据是需要被追踪的
+<ul>
+<li>这里我们认为任何用户的输入都是不被信任的，所以任何来自用户的输入都应该被追踪。相似的，任何会被用户的输入影响的数据也都应该被追踪。</li>
+</ul></li>
+<li>数据是如何被追踪的
+<ul>
+<li>“追踪数据”是一个抽象的说法，具体到程序中，我们的做法就是找出程序中可能被攻击者控制的变量，然后监控那些变量是否会被用在某些危险的地方，如<code>system</code>函数中。</li>
+</ul></li>
+</ul>
+<h4 id="几个概念">1.2 几个概念</h4>
+<ul>
+<li>source：指（不被信任的）数据的源头，这里我们可以简化为用户的输入。实际上source可以多种多样，任何可能被攻击者利用的输入都可以是source，比如一个配置文件，一个网络请求，或是一段音乐。</li>
+<li>sink：指数据的出口，这里特指比较危险的函数，如C中的<code>system</code>（导致command injection）， PHP中的<code>echo</code>（导致XSS），等等。</li>
+<li>tainted variable：指在程序中存储（不被信任的）数据的变量，也就是可能被攻击者控制的变量。</li>
+<li>sanitize：指程序中变量从被追踪状态（tainted）到不被追踪状态（untainted）的过程，一般是由特定函数或者重新赋值来完成。比如说下面代码中第一行的<code>a</code>处于tainted状态，因为程序对用户输入没有进行任何处理，直接将用户输入作为<code>echo</code>的参数会导致XSS；但第三行中的<code>a</code>就处于sanitized（untainted）状态，因为此时<code>a</code>中的特殊字符被<code>htmlspecialchars</code>转义过，XSS攻击在这里失效了。如果我们只关心XSS攻击，那我们就没必要再追踪<code>a</code>这个变量了（除非<code>a</code>的值在之后又被改变了）。这里的的<code>htmlspecialchars</code>函数就可以叫做是XSS的sanitizer。</li>
+</ul>
+<div class="sourceCode" id="cb1"><pre class="sourceCode php"><code class="sourceCode php"><a class="sourceLine" id="cb1-1" title="1"><span class="dv">1</span> <span class="kw">$a</span> = user_input<span class="ot">();</span> <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb1-2" title="2"><span class="dv">2</span> <span class="kw">echo</span> <span class="kw">$a</span><span class="ot">;</span></a>
+<a class="sourceLine" id="cb1-3" title="3"><span class="dv">3</span> <span class="kw">$a</span> = <span class="fu">htmlspecialchars</span><span class="ot">(</span><span class="kw">$a</span><span class="ot">);</span> <span class="co">// not tainted because of sanitization</span></a>
+<a class="sourceLine" id="cb1-4" title="4"><span class="dv">4</span> <span class="kw">echo</span> <span class="kw">$a</span><span class="ot">;</span></a></code></pre></div>
+<h2 id="strategy">2. Strategy</h2>
+<h4 id="high-level-strategy">2.1 high-level strategy</h4>
+<p>Taint analysis的难点在于已知source/sink的情况下，在茫茫多的变量中，如何精确地分辨source传过来的数据是否到达了sink。准确度很重要，如果不安全数据没有到达sink，但是你的分析却报了一条警告，那么这条警告就是false positive(FP)；如果不安全数据到达了sink，但是你的分析却报了一条警告，那么这条警告就是true negative(TN)。没有人喜欢FP或是TN，试想一下一个杀毒软件整天报告说你的正常文件是病毒，却又遗漏了真正的病毒。</p>
+<p>要追踪不安全数据的传播（taint propagation），其实很简单，变量总是一步一步传播的。比如说变量<code>a</code>被tainted了，然后<code>b = a</code>，那我们就说<code>b</code>也被tainted了，就是这么简单。</p>
+<p>Tainted variable的传播方式主要可以分为赋值指令、布尔指令、算数指令、分支指令等。其中值得注意的是布尔指令，布尔指令不是总能传播taintness的。考虑以下代码：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb2-1" title="1"><span class="dt">bool</span> a = user_input(); <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb2-2" title="2"><span class="dt">bool</span> b = false; <span class="co">// not tainted</span></a>
+<a class="sourceLine" id="cb2-3" title="3"><span class="dt">bool</span> res1 = a &amp; b; <span class="co">// not tainted</span></a>
+<a class="sourceLine" id="cb2-4" title="4"><span class="dt">bool</span> res2 = a || b; <span class="co">// still tainted</span></a></code></pre></div>
+<p>我们可以看到<code>res1</code>不再处于tainted状态，而<code>res2</code>依然被tainted，背后的原因我这里就不说了。</p>
+<p>布尔指令还涉及到追踪的精度问题，考虑以下代码：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb3-1" title="1"><span class="dt">uint8_t</span> a = atoi(user_input()); <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb3-2" title="2"><span class="dt">uint32_t</span> b = <span class="bn">0xfffffff</span>; <span class="co">// not tainted</span></a>
+<a class="sourceLine" id="cb3-3" title="3">b &amp;= a; <span class="co">// tainted, but how?</span></a>
+<a class="sourceLine" id="cb3-4" title="4"><span class="dt">uint32_t</span> c = b &amp; <span class="bn">0xffff000</span>; <span class="co">// is c tainted?</span></a></code></pre></div>
+<p>我们可以清楚地意识到第三行的<code>b</code>是一个tainted variable，也就意味着它可能被攻击者所控制，根据之前提到的逻辑，<code>c</code>当然也应该是tainted的，因为它的值是从<code>b</code>里来的。但是事实如此吗？我们注意到<code>a</code>的长度是8个bit，而<code>b</code>的值是通过与<code>a</code>进行&amp;操作得到的，也就是说攻击者至多只能控制<code>b</code>低位的8个bit，而<code>c</code>的值则完全不受<code>b</code>中低位的8个bit影响，所以实际上<code>c</code>并不应该被taint。</p>
+<p>在下面的实现中，为简便起见，我们不考虑上面提到的布尔指令带来的问题，我们会简单粗暴地认为布尔指令也总是会传播taintness的。</p>
+<h4 id="llvm-specific-strategy">2.2 LLVM-specific strategy</h4>
+<p>如之前所说，在LLVM中，我们需要和LLVM IR生成出来的AST打交道，所以上述的high-level strategy必须落实到LLVM IR上才行。为了方便起见，这里的具体实现有所不同，上面说的是我们要先找到tainted data，然后追踪这些data如何在程序中传播。这里我使用的相反的策略，我打算找到程序中所有的常量（constant），那么除常量之外的，都是静态分析下无法确定具体值的变量，换句话说，它们的值是需要外部输入来确定的，也就是潜在的，可能被攻击者控制的值。 我们要关注的IR指令有以下几种：</p>
+<ul>
+<li><code>StoreInst</code>：语法是<code>store src, dst</code>，将src的值存到dst中，如果src的值是tainted的，那么dst的值也是tainted的</li>
+<li><code>LoadInst</code>：语法是<code>dst = load src</code>，将src的值存到dst中，如果src的值是tainted的，那么dst的值也是tainted的</li>
+<li><code>CmpInst</code>：用于比较数字的大小，包括整数与实数，假如该指令的一个或两个操作数被tainted，那么其结果也被tainted</li>
+<li><code>CastInst</code>：用于类型转换，如果被转换的变量是tainted，那么转换后的变量也是tainted的</li>
+<li><code>BinaryOperator</code>：所有二元操作符，包括算术指令，布尔指令等，虽然之前提到过布尔指令的问题，但是这里为了简化，直接定义成，如果两个操作数中有一个或两个是tainted的，那么它们的结果也是tainted的</li>
+</ul>
+<p>LLVM中IR是以不同的的scope组织起来的，常用的scope从大到小排列如下：Module &gt; Function &gt; BasicBlock &gt; Instruction。为了进行上述分析，我们可以通过遍历的方式来查看每一条instruction，看这些指令是不是我们所关心的，但是也有更好的办法。回忆上面说到的AST，LLVM提供了不同scope的visitor（visitor pattern是compiler里最常见的设计模式之一），我们需要用到的是<a href="https://llvm.org/doxygen/classllvm_1_1InstVisitor.html">InstVisitor</a>，顾名思义，InstVisitor会遍历AST中的每一条Instruction，我们只需重写我们关心的指令所对应的visit函数。</p>
+<h2 id="implementation">3. Implementation</h2>
+<p>首先我们需要做准备工作，即编译LLVM，这里我们使用LLVM3.8，编译大约需要20-40分钟不等。编译完成后，文章后面提到的所有LLVM相关程序如<code>opt</code>，<code>llvm-dis</code>等，都可以在<code>llvm/build/bin</code>目录下找到。</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1"><span class="fu">mkdir</span> llvm<span class="kw">;</span> <span class="bu">cd</span> llvm</a>
+<a class="sourceLine" id="cb4-2" title="2"><span class="fu">wget</span> http://releases.llvm.org/3.8.0/llvm-3.8.0.src.tar.xz</a>
+<a class="sourceLine" id="cb4-3" title="3"><span class="fu">wget</span> http://releases.llvm.org/3.8.0/cfe-3.8.0.src.tar.xz</a>
+<a class="sourceLine" id="cb4-4" title="4"><span class="fu">tar</span> xf llvm-3.8.0.src.tar.xz</a>
+<a class="sourceLine" id="cb4-5" title="5"><span class="fu">tar</span> xf cfe-3.8.0.src.tar.xz</a>
+<a class="sourceLine" id="cb4-6" title="6"><span class="fu">mv</span> llvm-3.8.0.src src</a>
+<a class="sourceLine" id="cb4-7" title="7"><span class="fu">mv</span> cfe-3.8.0.src src/tools/clang</a>
+<a class="sourceLine" id="cb4-8" title="8"><span class="fu">mkdir</span> build<span class="kw">;</span> <span class="bu">cd</span> build</a>
+<a class="sourceLine" id="cb4-9" title="9"><span class="fu">cmake</span> ../src</a>
+<a class="sourceLine" id="cb4-10" title="10"><span class="fu">make</span></a></code></pre></div>
+<p>然后开始写代码，首先我们需要新建一个struct并继承InstVisitor，并建立一个<code>std::set</code>来存储所有的常量。</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb5-1" title="1"><span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb5-2" title="2">  TaintInstVisitor() {}</a>
+<a class="sourceLine" id="cb5-3" title="3">  ~TaintInstVisitor() {}</a>
+<a class="sourceLine" id="cb5-4" title="4">  set&lt;Value*&gt; const_vars;</a>
+<a class="sourceLine" id="cb5-5" title="5">}</a></code></pre></div>
+<p>另外，我们需要一个判定常量的方法，这里我们使用LLVM自带的<code>isa&lt;Constant&gt;()</code>方法来检测目标变量是否是常量，如果一个变量是常量，那么我们就将这个常量加入上面定义的<code>const_vars</code>中；如果一个变量的值是从常量派生而来的，那我们也将它加入<code>const_vars</code>中，所以我们检测一个变量是否是常量的函数可以写成如下形式：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb6-1" title="1"><span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="dt">bool</span> is_constant (Value* v) {</a>
+<a class="sourceLine" id="cb6-4" title="4">    <span class="cf">return</span> (const_vars.find(v) != const_vars.end()) || (isa&lt;Constant&gt;(v));</a>
+<a class="sourceLine" id="cb6-5" title="5">  }</a>
+<a class="sourceLine" id="cb6-6" title="6">}</a></code></pre></div>
+<p>接下来我们实现如何判断一个变量是否由常量派生而来。首先是<code>StoreInst</code>，判断方式很简单，如果<code>src</code>是常量，那么<code>dst</code>也是常量</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb7-1" title="1"><span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb7-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb7-3" title="3">  <span class="dt">void</span> visitStoreInst(StoreInst &amp;I) {</a>
+<a class="sourceLine" id="cb7-4" title="4">    <span class="co">// syntax: store src, dst</span></a>
+<a class="sourceLine" id="cb7-5" title="5">    <span class="co">// if src is a constant, then dst is a constant</span></a>
+<a class="sourceLine" id="cb7-6" title="6">    Value *op1 = I.getOperand(<span class="dv">0</span>); <span class="co">// src</span></a>
+<a class="sourceLine" id="cb7-7" title="7">    <span class="cf">if</span> (is_constant(op1)) {</a>
+<a class="sourceLine" id="cb7-8" title="8">      Value *operand2 = I.getOperand(<span class="dv">1</span>); <span class="co">// dst</span></a>
+<a class="sourceLine" id="cb7-9" title="9">      const_vars.insert(operand2);</a>
+<a class="sourceLine" id="cb7-10" title="10">    }</a>
+<a class="sourceLine" id="cb7-11" title="11">  }</a>
+<a class="sourceLine" id="cb7-12" title="12">}</a></code></pre></div>
+<p>然后是<code>LoadInst</code>与<code>CastInst</code>，同样的如果<code>src</code>是常量，那么<code>dst</code>也是常量。在这里必须要提一下LLVM精巧的设计，在LLVM中，各种<code>Instruction</code>是继承自<code>Value</code>的，你可以通过<code>Insturction</code>的各种方法来得到关于这条指令的各种信息，而这个<code>Instruction</code>本身的值则代表了这条指令的返回值。比如说，<code>load src</code>，我们知道这条指令是将<code>src</code>的值赋给另一个变量，但是这个变量怎么表示呢？在LLVM里，<code>load src</code>这条指令本身就代表了被赋值的那个变量。在单操作数的指令中，如<code>LoadInst</code>与<code>CastInst</code>，这条指令本身就代表了那个被赋值的变量。</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb8-1" title="1"><span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb8-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb8-3" title="3">  <span class="dt">void</span> visitLoadInst(LoadInst &amp;I) {</a>
+<a class="sourceLine" id="cb8-4" title="4">    <span class="co">// syntax: dst = load src</span></a>
+<a class="sourceLine" id="cb8-5" title="5">    <span class="co">// if src is a const, then dst is a const</span></a>
+<a class="sourceLine" id="cb8-6" title="6">    Value *op = I.getOperand(<span class="dv">0</span>); <span class="co">// src</span></a>
+<a class="sourceLine" id="cb8-7" title="7">    <span class="cf">if</span> (is_constant(op)) { <span class="co">// src is a const</span></a>
+<a class="sourceLine" id="cb8-8" title="8">      const_vars.insert(&amp;I); <span class="co">// dst is also a const</span></a>
+<a class="sourceLine" id="cb8-9" title="9">    }</a>
+<a class="sourceLine" id="cb8-10" title="10">  }</a>
+<a class="sourceLine" id="cb8-11" title="11">  <span class="dt">void</span> visitCastInst(CastInst &amp;I) {</a>
+<a class="sourceLine" id="cb8-12" title="12">    <span class="co">// syntax: dst = load src</span></a>
+<a class="sourceLine" id="cb8-13" title="13">    Value *op = I.getOperand(<span class="dv">0</span>);</a>
+<a class="sourceLine" id="cb8-14" title="14">    <span class="cf">if</span> (is_constant(op)) {</a>
+<a class="sourceLine" id="cb8-15" title="15">      const_vars.insert(&amp;I);</a>
+<a class="sourceLine" id="cb8-16" title="16">    }</a>
+<a class="sourceLine" id="cb8-17" title="17">  }</a>
+<a class="sourceLine" id="cb8-18" title="18">}</a></code></pre></div>
+<p>剩下的则是各种二元操作符，包括比较，算术，布尔指令，等等，我们可以用一个统一的函数来处理它们。这里我们简单粗暴地认为只有当二元操作符的两个操作数都是常量的时候，我们才认为这个被赋值的变量也是一个常量。</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb9-1" title="1"><span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb9-2" title="2">  <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb9-3" title="3">  <span class="dt">void</span> visitCmpInst(CmpInst &amp;I) {</a>
+<a class="sourceLine" id="cb9-4" title="4">    handle_binaryOp(I);</a>
+<a class="sourceLine" id="cb9-5" title="5">  }</a>
+<a class="sourceLine" id="cb9-6" title="6"></a>
+<a class="sourceLine" id="cb9-7" title="7">  <span class="dt">void</span> visitBinaryOperator(BinaryOperator &amp;I) {</a>
+<a class="sourceLine" id="cb9-8" title="8">    handle_binaryOp(I);</a>
+<a class="sourceLine" id="cb9-9" title="9">  }</a>
+<a class="sourceLine" id="cb9-10" title="10"></a>
+<a class="sourceLine" id="cb9-11" title="11">  <span class="dt">void</span> handle_binaryOp(Instruction&amp; I) {</a>
+<a class="sourceLine" id="cb9-12" title="12">    Value *op1 = I.getOperand(<span class="dv">0</span>);</a>
+<a class="sourceLine" id="cb9-13" title="13">    Value *op2 = I.getOperand(<span class="dv">1</span>);</a>
+<a class="sourceLine" id="cb9-14" title="14">    <span class="co">// </span><span class="al">TODO</span><span class="co">: actually boolean operator don&#39;t follow: &amp;&amp;, ||, &amp;, |</span></a>
+<a class="sourceLine" id="cb9-15" title="15">    <span class="cf">if</span> (is_constant(op1) &amp;&amp; is_constant(op2)) {</a>
+<a class="sourceLine" id="cb9-16" title="16">      const_vars.insert(&amp;I);</a>
+<a class="sourceLine" id="cb9-17" title="17">    }</a>
+<a class="sourceLine" id="cb9-18" title="18">  }</a>
+<a class="sourceLine" id="cb9-19" title="19">}</a></code></pre></div>
+<p>最后我们创建一个<code>TaintInstVisitor</code>的实例，并将其运行于这个Module，最后我们将检测到的所有常量打印出来：</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode cpp"><code class="sourceCode cpp"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">struct</span> Hello : <span class="kw">public</span> ModulePass {</a>
+<a class="sourceLine" id="cb10-2" title="2">  <span class="kw">struct</span> TaintInstVisitor : <span class="kw">public</span> InstVisitor&lt;TaintInstVisitor&gt; {</a>
+<a class="sourceLine" id="cb10-3" title="3">    <span class="co">// ...</span></a>
+<a class="sourceLine" id="cb10-4" title="4">  }</a>
+<a class="sourceLine" id="cb10-5" title="5">  <span class="kw">virtual</span> <span class="dt">bool</span> runOnModule(Module &amp;M) {</a>
+<a class="sourceLine" id="cb10-6" title="6">    TaintInstVisitor tv;</a>
+<a class="sourceLine" id="cb10-7" title="7">    tv.visit(M);</a>
+<a class="sourceLine" id="cb10-8" title="8">    set&lt;Value*&gt; const_vars = tv.get_const_vars();</a>
+<a class="sourceLine" id="cb10-9" title="9">    <span class="cf">for</span> (<span class="kw">auto</span> it = const_vars.begin(); it != const_vars.end(); it++) {</a>
+<a class="sourceLine" id="cb10-10" title="10">      errs() &lt;&lt; *<span class="kw">static_cast</span>&lt;Instruction*&gt;(*it) &lt;&lt; <span class="ch">&#39;</span><span class="sc">\n</span><span class="ch">&#39;</span>;</a>
+<a class="sourceLine" id="cb10-11" title="11">    }</a>
+<a class="sourceLine" id="cb10-12" title="12">    <span class="cf">return</span> <span class="kw">true</span>;</a>
+<a class="sourceLine" id="cb10-13" title="13">  }</a>
+<a class="sourceLine" id="cb10-14" title="14">}</a></code></pre></div>
+<h2 id="run">4. Run</h2>
+<p>写完了Pass，下面就要开始运行了。首先我们要知道LLVM Pass运行于LLVM的bitcode上，一般我们通过使用clang编译来得到bitcode：</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb11-1" title="1"><span class="fu">clang</span> -emit-llvm -o a.out.bc -c test.c</a></code></pre></div>
+<p>而我则偏好用<a href="https://github.com/travitch/whole-program-llvm/">wllvm</a>来得到bitcode，wllvm是Python写的，你可以通过pip来安装它，然后用如下命令取得bitcode：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb12-1" title="1"><span class="ex">wllvm</span> test.bc</a>
+<a class="sourceLine" id="cb12-2" title="2"><span class="ex">extract-bc</span> a.out <span class="co"># generate bitcode file called a.out.bc</span></a></code></pre></div>
+<p>wllvm的优势在于，当你在编译一个拥有许多源文件的project时，你也可以通过上面这两条简单的指令来获取整个项目的bitcode。</p>
+<p>获取bitcode之后，我们使用LLVM的opt来运行它，这里我们写的Pass叫做Hello，我们可以使用如下命令来运行这个Pass</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb13-1" title="1"><span class="ex">opt</span> -load LLVMHello.so -Hello <span class="op">&lt;</span> a.out.bc <span class="op">&gt;</span> /dev/null</a></code></pre></div>
+<h2 id="verify">5. Verify</h2>
+<p>下面我们通过下面这个简单的程序来验证一下，其中只有<code>b</code>是常量，其他变量都是可以被攻击者控制的。</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb14-1" title="1"><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></a>
+<a class="sourceLine" id="cb14-2" title="2"></a>
+<a class="sourceLine" id="cb14-3" title="3"><span class="dt">int</span> main(<span class="dt">int</span> argc, <span class="dt">char</span>** argv) {</a>
+<a class="sourceLine" id="cb14-4" title="4">  <span class="dt">int</span> a = argc;</a>
+<a class="sourceLine" id="cb14-5" title="5">  <span class="dt">int</span> b = <span class="dv">1</span>;</a>
+<a class="sourceLine" id="cb14-6" title="6">  <span class="dt">int</span> c = a + b;</a>
+<a class="sourceLine" id="cb14-7" title="7">  printf(<span class="st">&quot;%d</span><span class="sc">\n</span><span class="st">&quot;</span>, c);</a>
+<a class="sourceLine" id="cb14-8" title="8">}</a></code></pre></div>
+<p>使用上面提到的方法运行Pass，打印如下结果：</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode llvm"><code class="sourceCode llvm"><a class="sourceLine" id="cb15-1" title="1">  <span class="fu">%b</span> = <span class="kw">alloca</span> <span class="dt">i32</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb15-2" title="2">  <span class="fu">%2</span> = <span class="kw">load</span> <span class="dt">i32</span>, <span class="dt">i32</span>* <span class="fu">%b</span>, <span class="kw">align</span> <span class="dv">4</span></a></code></pre></div>
+<p>这说明该程序中共有两个变量的值为常量，第一个是<code>b</code>，第二个是<code>%2</code>。其中<code>%2</code>是一个临时变量，它的值是通过load变量b的值得到的，也就是说它的值完全等于<code>b</code>的值。由此来看，输出结果与我们之前的分析相符。</p>
+<p>我们可以通过<code>llvm-dis</code>将bitcode转换为IR，再来验证一下Pass输出的正确性。</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb16-1" title="1"><span class="ex">llvm-dis</span> a.out.bc</a></code></pre></div>
+<p>上述命令会生成IR文件，名为<code>a.out.ll</code>，主要内容如下：</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode llvm"><code class="sourceCode llvm"><a class="sourceLine" id="cb17-1" title="1"><span class="fu">@.str</span> = <span class="kw">private</span> unnamed_addr <span class="kw">constant</span> [<span class="dv">4</span> x <span class="dt">i8</span>] c<span class="st">&quot;%d\0A\00&quot;</span>, <span class="kw">align</span> <span class="dv">1</span></a>
+<a class="sourceLine" id="cb17-2" title="2"></a>
+<a class="sourceLine" id="cb17-3" title="3"><span class="co">; Function Attrs: nounwind uwtable</span></a>
+<a class="sourceLine" id="cb17-4" title="4"><span class="kw">define</span> <span class="dt">i32</span> <span class="fu">@main</span>(<span class="dt">i32</span> <span class="fu">%argc</span>, <span class="dt">i8</span>** <span class="fu">%argv</span>) #<span class="dv">0</span> {</a>
+<a class="sourceLine" id="cb17-5" title="5"><span class="fu">entry:</span></a>
+<a class="sourceLine" id="cb17-6" title="6">  <span class="fu">%argc.addr</span> = <span class="kw">alloca</span> <span class="dt">i32</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-7" title="7">  <span class="fu">%argv.addr</span> = <span class="kw">alloca</span> <span class="dt">i8</span>**, <span class="kw">align</span> <span class="dv">8</span></a>
+<a class="sourceLine" id="cb17-8" title="8">  <span class="fu">%a</span> = <span class="kw">alloca</span> <span class="dt">i32</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-9" title="9">  <span class="fu">%b</span> = <span class="kw">alloca</span> <span class="dt">i32</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-10" title="10">  <span class="fu">%c</span> = <span class="kw">alloca</span> <span class="dt">i32</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-11" title="11">  <span class="kw">store</span> <span class="dt">i32</span> <span class="fu">%argc</span>, <span class="dt">i32</span>* <span class="fu">%argc.addr</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-12" title="12">  <span class="kw">store</span> <span class="dt">i8</span>** <span class="fu">%argv</span>, <span class="dt">i8</span>*** <span class="fu">%argv.addr</span>, <span class="kw">align</span> <span class="dv">8</span></a>
+<a class="sourceLine" id="cb17-13" title="13">  <span class="fu">%0</span> = <span class="kw">load</span> <span class="dt">i32</span>, <span class="dt">i32</span>* <span class="fu">%argc.addr</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-14" title="14">  <span class="kw">store</span> <span class="dt">i32</span> <span class="fu">%0</span>, <span class="dt">i32</span>* <span class="fu">%a</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-15" title="15">  <span class="kw">store</span> <span class="dt">i32</span> <span class="dv">1</span>, <span class="dt">i32</span>* <span class="fu">%b</span>, <span class="kw">align</span> <span class="dv">4</span> <span class="co">; %b is a constant</span></a>
+<a class="sourceLine" id="cb17-16" title="16">  <span class="fu">%1</span> = <span class="kw">load</span> <span class="dt">i32</span>, <span class="dt">i32</span>* <span class="fu">%a</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-17" title="17">  <span class="fu">%2</span> = <span class="kw">load</span> <span class="dt">i32</span>, <span class="dt">i32</span>* <span class="fu">%b</span>, <span class="kw">align</span> <span class="dv">4</span> <span class="co">; %2 is a constant</span></a>
+<a class="sourceLine" id="cb17-18" title="18">  <span class="fu">%add</span> = <span class="kw">add</span> <span class="kw">nsw</span> <span class="dt">i32</span> <span class="fu">%1</span>, <span class="fu">%2</span></a>
+<a class="sourceLine" id="cb17-19" title="19">  <span class="kw">store</span> <span class="dt">i32</span> <span class="fu">%add</span>, <span class="dt">i32</span>* <span class="fu">%c</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-20" title="20">  <span class="fu">%3</span> = <span class="kw">load</span> <span class="dt">i32</span>, <span class="dt">i32</span>* <span class="fu">%c</span>, <span class="kw">align</span> <span class="dv">4</span></a>
+<a class="sourceLine" id="cb17-21" title="21">  <span class="fu">%call</span> = <span class="kw">call</span> <span class="dt">i32</span> (<span class="dt">i8</span>*, ...) <span class="fu">@printf</span>(<span class="dt">i8</span>* <span class="kw">getelementptr</span> <span class="kw">inbounds</span> ([<span class="dv">4</span> x <span class="dt">i8</span>], [<span class="dv">4</span> x <span class="dt">i8</span>]* <span class="fu">@.str</span>, <span class="dt">i32</span> <span class="dv">0</span>, <span class="dt">i32</span> <span class="dv">0</span>), <span class="dt">i32</span> <span class="fu">%3</span>)</a>
+<a class="sourceLine" id="cb17-22" title="22">  <span class="kw">ret</span> <span class="dt">i32</span> <span class="dv">0</span></a>
+<a class="sourceLine" id="cb17-23" title="23">}</a></code></pre></div>
+<p>通过查看IR我们可以发现，Pass的输出结果是正确的，在这个程序里，只有<code>%b</code>和<code>%2</code>的值是常量，而其他的值都是潜在的可以被攻击者控制的值。</p>
+<h2 id="more-about-llvm">6. More about LLVM</h2>
+<p>利用LLVM Pass还可以做很多很多事，简单的比如说生成call graph，control flow graph之类的，或者找出代码中所有的循环；稍微复杂点的，就不只是分析，可能会涉及到instrumentation，也就是利用LLVM更改程序行为，比如说在源代码中引入一个新的函数，并在所有特定类型的指令之后都插入该函数的调用。</p>
+<p>当然LLVM也不是无所不能的，比如它不适用于没有源代码的项目，对于这种情况，或许使用来自Intel的Pin来做动态分析显得更为合适。</p>
+<h2 id="taint-analysis-and-others">7. Taint analysis and others</h2>
+<h4 id="implicit-flows">7.1 Implicit flows</h4>
+<p>文章写到这里，看起来taint analysis已经很强大了，可事实上依旧存在它难以处理的情况，比如implicit flows。</p>
+<p>考虑以下代码：</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb18-1" title="1">x   =   user_input(); <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb18-2" title="2">y   =   x; <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb18-3" title="3"><span class="cf">if</span> (y == <span class="dv">0</span>) { <span class="co">// tainted</span></a>
+<a class="sourceLine" id="cb18-4" title="4">    z   =   <span class="dv">2</span>; <span class="co">// not tainted</span></a>
+<a class="sourceLine" id="cb18-5" title="5">} <span class="cf">else</span> {</a>
+<a class="sourceLine" id="cb18-6" title="6">    z   =   <span class="dv">1</span>; <span class="co">// not tainted</span></a>
+<a class="sourceLine" id="cb18-7" title="7">}   </a>
+<a class="sourceLine" id="cb18-8" title="8">system(z);</a></code></pre></div>
+<p>沿用我们之前写的analysis，我们会得出<code>x</code>和<code>y</code>是tainted的而<code>z</code>并不是tainted的结论，进而得出“<code>system(z)</code>是安全的”这样一个结论。但是事实真的如此吗？我们注意到当<code>y</code>的值为0的时候，<code>z</code>的值必定是2；而当<code>y</code>的值不为0时，<code>z</code>的值必定为1。换句话说，<code>z</code>的值是由<code>y</code>的值来决定的，不同于上面提到的任何一种方式，这种方式是间接的，通过控制流（control flow）而非数据流（data flow）来决定的。</p>
+<p>这时候，我们实际上陷入了一个进退两难的境地。激进的做法是，如果决定分支的变量与用户输入有关，则taint该分支中所有的变量，这会导致over-taint，很多不该被taint的变量最后也被taint了；保守的做法是，放弃在taint analysis中检测implicit flows，也就是说，在上面的代码中，<code>z</code>将不会被标记为tainted。不过，无论选择那一种做法，都是不完美的，都会导致分析的结果出现偏差。</p>
+<p>所以就没有更好的办法了吗？说实话，我也并不是很清楚。不过如果你有兴趣，我会建议你google一下“causality inference taint analysis”，也许你会发现比taint analysis更好的方法。</p>
+<a style="color:black;font-size:2em;float:right;margin-right:30px;margin-bottom:40px;" href="../">[Return to the homepage]</a>
+<script>
+var code_blocks = document.querySelectorAll("pre.sourceCode");
+code_blocks.forEach(function(block) {
+  block.classList.add("numberSource");
+  block.classList.add("numberLines");
+});
+</script>
+</body>
+</html>
