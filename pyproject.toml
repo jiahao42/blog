@@ -1,0 +1,18 @@
+[project]
+name = "blog"
+version = "0.1.0"
+description = "Build scripts for Ground Oddity (RSS feed, sitemap, Google Analytics)"
+requires-python = ">=3.9"
+dependencies = [
+    # rss_generator.py
+    "arrow",
+    "beautifulsoup4",
+    "html5lib",
+    # ga.py
+    "google-analytics-data",
+    "pycountry",
+]
+
+# The blog is a collection of scripts, not an installable package.
+[tool.uv]
+package = false

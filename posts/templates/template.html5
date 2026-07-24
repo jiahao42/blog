@@ -19,6 +19,9 @@ $endif$
 $if(date)$
   <meta name="published" content="$date$" />
 $endif$
+$if(path)$
+  <link ref="canonical" href="http://idle.systems/$path$" />
+$endif$
   <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/syntax-highlighting.css" />

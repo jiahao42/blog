@@ -157,6 +157,8 @@ while ((*indirect) != entry)
 
 Unlearn？听起来会不会有点熟悉，是啊，Master Yoda训练Luke的时候也说提到过这个词。Unlearn很重要，在我看来，第一次的那个Learn，我更愿意称之为模仿，你模仿你的老师，模仿书本上的知识，最后慢慢地入门。而Relearn才是你真正理解某个概念的本质的时候，我觉得这也是最容易出现创新的时候。
 
+<!-- Unlearn则是不断练习的过程，不断练习直到你忘记你曾经学过那些东西，进而把它们当作本能一样的存在——你无需知道它们叫什么，但是你却清晰地知道它们是什么 -->
+
 <center>
 <img src="../imgs/you-must-unlearn-what-you-have-learned.jpg" alt="you must unlearn what you have learned" height="300"/>
 </center>

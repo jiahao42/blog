@@ -1,127 +1,268 @@
-<!DOCTYPE html>
+<!doctype html>
+
 <html lang="en">
-
-<head>
-  <title>Ground Oddity</title>
-
-  <meta charset="utf-8">
-  <link rel="stylesheet" type="text/css" href='static/style.css' />
-  <!-- The orginal CSS is from https://gist.github.com/killercup/5917178, Thanks! -->
-  <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
-  <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
-  <!-- ; The favicon is
+    <head>
+        <title>Ground Oddity</title>
+        <meta charset="utf-8" />
+        <link href="static/style.css" rel="stylesheet" type="text/css" />
+        <!-- The orginal CSS is from https://gist.github.com/killercup/5917178, Thanks! -->
+        <link href="/static/favicon.ico" rel="icon" type="image/x-icon" />
+        <link
+            href="/static/favicon.ico"
+            rel="shortcut icon"
+            type="image/x-icon"
+        />
+        <link href="http://idle.systems" ref="canonical" />
+        <!-- ; The favicon is
   <a href="http://diablo.wikia.com/wiki/Raven">Raven</a>, a Druid skill in
   <a href="https://en.wikipedia.org/wiki/Diablo_II">Diablo II</a> -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@100..900&display=swap"
+            rel="stylesheet"
+        />
+        <meta
+            content="vAQHjUuTdIGja16wxCarfwIS4qQ4BgKN0xUbLfdHVmY"
+            name="google-site-verification"
+        />
+        <meta content="QnlmVADEdS" name="baidu-site-verification" />
+        <meta content="Jiahao Cai" name="author" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <script
+            async=""
+            data-ad-client="ca-pub-5609127535929327"
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"
+        ></script>
+        <!-- Google tag (gtag.js) -->
+        <script
+            async=""
+            src="https://www.googletagmanager.com/gtag/js?id=G-BN2ZZR04QV"
+        ></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+            gtag("js", new Date());
 
-  <meta name="google-site-verification" content="vAQHjUuTdIGja16wxCarfwIS4qQ4BgKN0xUbLfdHVmY" />
-  <meta name="author" content="Jiahao Cai">
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Global site tag (gtag.js) - Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-
-    gtag('config', 'UA-116308654-1');
-  </script>
-</head>
-
-<body>
-  <table style="margin-top:1.5em; border: none;">
-    <td style="border: none;">
-      <a href="#">
-        <img src="static/logo.png" align="bottom" style="margin-bottom: 20px;margin-top: 10px;">
-      </a>
-    </td>
-    <td style="border: none; vertical-align: bottom;">
-      <a href="atom.xml">[RSS]</a>
-      <a href="about.html">[About]</a>
-    </td>
-  </table>
-  <h3>
-    Posts
-  </h3>
-  <ul>
-    <li>
-      <a class="posts" href="posts/I-quitted-phd.html">I quitted PhD</a> (Mar 2020)
-    </li>
-    <li>
-      <a class="posts" href="posts/program-analysis-via-llvm-pass.html">LLVM Pass与程序分析</a> (Feb 2020)
-    </li>
-    <li>
-      <a class="posts" href="posts/roaming-in-the-world.html">飘来飘去，就这么飘来飘去</a> (Oct 2019)
-      <br>
-    </li>
-    <li>
-        <a class="posts" href="posts/2019-march.html">近况</a> (Mar 2019)
-        <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/inspiration-of-bootstraping.html">自举的启发</a> (Sep 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/sicp-art-of-abstraction.html">SICP笔记 - 抽象的艺术</a> (Aug 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/sicp-recursion-iteration.html">SICP笔记 - 递归与迭代</a> (Aug 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/taste-of-code.html">代码的taste</a> (Aug 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/travel-in-europe.html">我在欧洲的几次旅行</a> (Jul 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/life-in-sweden.html">瑞典生活总结</a> (Jun 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/racket-slideshow.html">用Lisp写slides</a> (Jun 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/my-blog-management.html">用Makefile管理blog</a> (May 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/terminal_music.html">如何在终端中优雅地听歌</a> (Apr 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/quote_from_jobs.html">关于[乔布斯, 费曼]言论的一些摘录</a> (Apr 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/shadowsocks_in_ruby.html">使用Ruby开发Shadowsocks</a> (Mar 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/thoughts.html">A thinking reed</a> (Mar 2018)
-      <br>
-    </li>
-    <li>
-      <a class="posts" href="posts/reservoir_computing.html">Reservoir computing 简介</a> (Feb 2018)
-    </li>
-  </ul>
-
-
-
-  <div class="clear"></div>
-  <div style="position: relative; bottom: 5px">
-    <p style="color:gray;"> 
-      <i>
-        /* The favicon is Raven, a Druid skill in Diablo II */
-      </i>
-    </p>
-  </div>
-</body>
-
-
+            gtag("config", "G-BN2ZZR04QV");
+        </script>
+        <script src="/static/pangu.min.js"></script>
+        <style>
+            table,
+            tbody,
+            tr,
+            th,
+            td {
+                border: none !important;
+            }
+            td {
+                vertical-align: bottom !important;
+            }
+        </style>
+    </head>
+    <body>
+        <table style="margin-top: 1.5em">
+            <tbody>
+                <tr>
+                    <td>
+                        <a href="#">
+                            <img
+                                align="bottom"
+                                height="auto"
+                                src="static/logo.png"
+                                style="margin-bottom: 20px; margin-top: 10px"
+                            />
+                        </a>
+                    </td>
+                    <!--<td style="border: none; vertical-align: bottom;">-->
+                    <td>
+                        <a href="atom.xml">[RSS]</a>
+                        <a href="about.html">[About]</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>
+                        <a href="posts/thoughts.html">[My random thoughts]</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <h3>Posts</h3>
+        <ul class="posts-list">
+            <li class="year"><em>2026</em></li>
+            <li>
+                <a class="posts" href="posts/leap-of-faith.html"
+                    >What if he makes it...?</a
+                >
+                (Jan 2026)
+            </li>
+            <li class="year"><em>2025</em></li>
+            <li>
+                <a class="posts" href="posts/no-more-twenties.html"
+                    >二十岁不再来</a
+                >
+                (Dec 2025)
+            </li>
+            <li>
+                <a class="posts" href="posts/five-years-at-google.html"
+                    >Google 五年</a
+                >
+                (May 2025)
+            </li>
+            <li class="year"><em>2022</em></li>
+            <li>
+                <a class="posts" href="posts/a-new-journey.html"
+                    >新的旅程...?</a
+                >
+                (Feb 2022)
+            </li>
+            <li class="year"><em>2020</em></li>
+            <li>
+                <a class="posts" href="posts/lamb-rack-with-sous-vide.html"
+                    >用Sous vide做羊排</a
+                >
+                (Nov 2020)
+            </li>
+            <li>
+                <a
+                    class="posts"
+                    href="posts/my-first-three-months-at-google.html"
+                    >我在Google的前三个月</a
+                >
+                (Sep 2020)
+            </li>
+            <li>
+                <a class="posts" href="posts/I-quitted-phd.html"
+                    >I quitted PhD</a
+                >
+                (Mar 2020)
+            </li>
+            <li>
+                <a
+                    class="posts"
+                    href="posts/program-analysis-via-llvm-pass.html"
+                    >LLVM Pass与程序分析</a
+                >
+                (Feb 2020)
+            </li>
+            <li class="year"><em>2019</em></li>
+            <li>
+                <a class="posts" href="posts/roaming-in-the-world.html"
+                    >飘来飘去，就这么飘来飘去</a
+                >
+                (Oct 2019)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/2019-march.html">近况</a> (Mar
+                2019)
+                <br />
+            </li>
+            <li class="year"><em>2018</em></li>
+            <li>
+                <a class="posts" href="posts/inspiration-of-bootstraping.html"
+                    >自举的启发</a
+                >
+                (Sep 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/sicp-art-of-abstraction.html"
+                    >SICP笔记 - 抽象的艺术</a
+                >
+                (Aug 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/sicp-recursion-iteration.html"
+                    >SICP笔记 - 递归与迭代</a
+                >
+                (Aug 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/taste-of-code.html">代码的taste</a>
+                (Aug 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/travel-in-europe.html"
+                    >我在欧洲的几次旅行</a
+                >
+                (Jul 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/life-in-sweden.html"
+                    >瑞典生活总结</a
+                >
+                (Jun 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/racket-slideshow.html"
+                    >用Lisp写slides</a
+                >
+                (Jun 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/my-blog-management.html"
+                    >用Makefile管理blog</a
+                >
+                (May 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/terminal_music.html"
+                    >如何在终端中优雅地听歌</a
+                >
+                (Apr 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/quote_from_jobs.html"
+                    >关于[乔布斯, 费曼]言论的一些摘录</a
+                >
+                (Apr 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/shadowsocks_in_ruby.html"
+                    >使用Ruby开发Shadowsocks</a
+                >
+                (Mar 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/thoughts.html">A thinking reed</a>
+                (Mar 2018)
+                <br />
+            </li>
+            <li>
+                <a class="posts" href="posts/reservoir_computing.html"
+                    >Reservoir computing 简介</a
+                >
+                (Feb 2018)
+            </li>
+        </ul>
+        <div class="clear"></div>
+        <footer style="position: relative; bottom: 5px">
+            <p style="color: gray">
+                <i> /* The favicon is Raven, a Druid skill in Diablo II */ </i>
+                <br />
+                <span id="pageviews"
+                    >This page has been viewed for 6229 times</span
+                >
+            </p>
+        </footer>
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                pangu.autoSpacingPage();
+            });
+        </script>
+    </body>
 </html>

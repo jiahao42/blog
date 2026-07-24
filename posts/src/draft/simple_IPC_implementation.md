@@ -9,16 +9,6 @@
 </script>
   
 <meta name="google-site-verification" content="vAQHjUuTdIGja16wxCarfwIS4qQ4BgKN0xUbLfdHVmY" />
-  
-<!-- Global site tag (gtag.js) - Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-116308654-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'UA-116308654-1');
-</script>
 
 </head>
 

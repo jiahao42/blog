@@ -3,6 +3,8 @@ title: LLVM Pass与程序分析
 date: Feb 23, 2020
 ---
 
+<img src="../imgs/llvm.png" alt="LLVM logo" height="250"/>
+
 *注：本文所用LLVM版本为3.8*
 
 ## 0. Overview
@@ -46,18 +48,18 @@ Taint analysis的难点在于已知source/sink的情况下，在茫茫多的变�
 
 要追踪不安全数据的传播（taint propagation），其实很简单，变量总是一步一步传播的。比如说变量`a`被tainted了，然后`b = a`，那我们就说`b`也被tainted了，就是这么简单。
 
-Tainted variable的传播方式主要可以分为赋值指令、布尔指令、算数指令、分支指令等。其中值得注意的是布尔指令，布尔指令不是总能传播taintness的。考虑以下代码：
+Tainted variable的传播方式主要可以分为赋值指令、布尔指令、算数指令、分支指令、位运算指令等。其中值得注意的是布尔指令和位运算指令，他们不是总能传播taintness的。考虑以下代码：
 
 ```C
 bool a = user_input(); // tainted
 bool b = false; // not tainted
-bool res1 = a & b; // not tainted
+bool res1 = a && b; // not tainted
 bool res2 = a || b; // still tainted
 ```
 
 我们可以看到`res1`不再处于tainted状态，而`res2`依然被tainted，背后的原因我这里就不说了。
 
-布尔指令还涉及到追踪的精度问题，考虑以下代码：
+位运算指令也涉及到上述的问题，除此之外，它还涉及到追踪的精度问题，考虑以下代码：
 
 ```C
 uint8_t a = atoi(user_input()); // tainted
@@ -68,7 +70,7 @@ uint32_t c = b & 0xffff000; // is c tainted?
 
 我们可以清楚地意识到第三行的`b`是一个tainted variable，也就意味着它可能被攻击者所控制，根据之前提到的逻辑，`c`当然也应该是tainted的，因为它的值是从`b`里来的。但是事实如此吗？我们注意到`a`的长度是8个bit，而`b`的值是通过与`a`进行&操作得到的，也就是说攻击者至多只能控制`b`低位的8个bit，而`c`的值则完全不受`b`中低位的8个bit影响，所以实际上`c`并不应该被taint。
 
-在下面的实现中，为简便起见，我们不考虑上面提到的布尔指令带来的问题，我们会简单粗暴地认为布尔指令也总是会传播taintness的。
+在下面的实现中，为简便起见，我们不考虑上面提到的布尔指令与位运算带来的问题，我们会简单粗暴地认为它们也总是会传播taintness的。
 
 #### 2.2 LLVM-specific strategy
 
@@ -79,9 +81,9 @@ uint32_t c = b & 0xffff000; // is c tainted?
 - `LoadInst`：语法是`dst = load src`，将src的值存到dst中，如果src的值是tainted的，那么dst的值也是tainted的
 - `CmpInst`：用于比较数字的大小，包括整数与实数，假如该指令的一个或两个操作数被tainted，那么其结果也被tainted
 - `CastInst`：用于类型转换，如果被转换的变量是tainted，那么转换后的变量也是tainted的
-- `BinaryOperator`：所有二元操作符，包括算术指令，布尔指令等，虽然之前提到过布尔指令的问题，但是这里为了简化，直接定义成，如果两个操作数中有一个或两个是tainted的，那么它们的结果也是tainted的
+- `BinaryOperator`：所有二元操作符，包括算术指令，布尔指令，位运算指令等，虽然之前提到过布尔指令与位运算指令的问题，但是这里为了简化，直接定义成，如果两个操作数中有一个或两个是tainted的，那么它们的结果也是tainted的
 
-LLVM中IR是以不同的的scope组织起来的，常用的scope从大到小排列如下：Module > Function > BasicBlock > Instruction。为了进行上述分析，我们可以通过遍历的方式来查看每一条instruction，看这些指令是不是我们所关心的，但是也有更好的办法。回忆上面说到的AST，LLVM提供了不同scope的visitor（visitor pattern是compiler里最常见的设计模式之一），我们需要用到的是[InstVisitor](https://llvm.org/doxygen/classllvm_1_1InstVisitor.html)，顾名思义，InstVisitor会遍历AST中的每一条Instruction，我们只需重写我们关心的指令所对应的visit函数。
+LLVM中IR是以不同的的scope组织起来的，常用的scope从大到小排列如下：Module > Function > BasicBlock > Instruction。为了进行上述分析，我们可以通过遍历的方式来查看每一条instruction（在Module里遍历Function，在Function里遍历BasicBlock，在BasicBlock里遍历Instruction...），看这些指令是不是我们所关心的，但是也有更好的办法。回忆上面说到的AST，LLVM提供了不同scope的visitor（visitor pattern是compiler里最常见的设计模式之一），我们需要用到的是[InstVisitor](https://llvm.org/doxygen/classllvm_1_1InstVisitor.html)，顾名思义，InstVisitor会遍历AST中的每一条Instruction，我们只需重写我们关心的指令所对应的visit函数。
 
 
 ## 3. Implementation
@@ -211,7 +213,7 @@ struct Hello : public ModulePass {
 
 ## 4. Run 
 
-写完了Pass，下面就要开始运行了。首先我们要知道LLVM Pass运行于LLVM的bitcode上，一般我们通过使用clang编译来得到bitcode：
+写完了Pass，下面就要开始运行了。首先我们要知道LLVM Pass运行于LLVM的bitcode上，一般来说，使用clang编译来得到bitcode：
 
 ```bash
 clang -emit-llvm -o a.out.bc -c test.c
@@ -309,19 +311,20 @@ entry:
 考虑以下代码：
 
 ```c
-x	=	user_input(); // tainted
-y	=	x; // tainted
+x = user_input(); // tainted
+y = x; // tainted
 if (y == 0) { // tainted
-	z	=	2; // not tainted
+  z = 2; // not tainted
 } else {
-	z	=	1; // not tainted
-}	
+  z = 1; // not tainted
+}
 system(z);
 ```
 
-沿用我们之前写的analysis，我们会得出`x`和`y`是tainted的而`z`并不是tainted的结论，进而得出“`system(z)`是安全的”这样一个结论。但是事实真的如此吗？我们注意到当`y`的值为0的时候，`z`的值必定是2；而当`y`的值不为0时，`z`的值必定为1。换句话说，`z`的值是由`y`的值来决定的，不同于上面提到的任何一种方式，这种方式是间接的，通过控制流（control flow）而非数据流（data flow）来决定的。
+沿用我们之前写的analysis，我们会得出`x`和`y`是tainted的而`z`并不是tainted的结论，进而得出“`system(z)`是无法被攻击者控制的”这样一个结论。但是事实真的如此吗？我们注意到当`y`的值为0的时候，`z`的值必定是2；而当`y`的值不为0时，`z`的值必定为1。换句话说，`z`的值是由`y`的值来决定的，不同于上面提到的任何一种方式，这种方式是间接的，通过控制流（control flow）而非数据流（data flow）来决定的。
 
 这时候，我们实际上陷入了一个进退两难的境地。激进的做法是，如果决定分支的变量与用户输入有关，则taint该分支中所有的变量，这会导致over-taint，很多不该被taint的变量最后也被taint了；保守的做法是，放弃在taint analysis中检测implicit flows，也就是说，在上面的代码中，`z`将不会被标记为tainted。不过，无论选择那一种做法，都是不完美的，都会导致分析的结果出现偏差。
 
 所以就没有更好的办法了吗？说实话，我也并不是很清楚。不过如果你有兴趣，我会建议你google一下“causality inference taint analysis”，也许你会发现比taint analysis更好的方法。
 
+(The End)

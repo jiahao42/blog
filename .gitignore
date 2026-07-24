@@ -1,5 +1,23 @@
+# secrets — never commit
+ga.config
+flask/
+
 .DS_Store
 BingSiteAuth.xml
-flask
 *.swp
 
+# build output — rebuild with: make && make rss && make sitemap
+posts/*.html
+atom.xml
+sitemap.xml
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# backups / editors
+*.bkup
+.idea/
+.vscode/

@@ -34,7 +34,7 @@ except ImportError:
     from bs4 import BeautifulSoup
 
 for html_name in html_names:
-  print(f'generating info for {html_name}')
+  print(f'generating entry for {html_name}')
   with open(path + html_name, 'r') as html:
     parsed_html = BeautifulSoup(html.read().encode('utf-8'), "html5lib")
   
